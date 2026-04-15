@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Badge } from "@/app/_components/badge";
 import { formatMoney } from "@/lib/format";
-import { createTeamMember, deleteTeamMember, createClient, toggleClientVat } from "@/app/actions";
+import { createTeamMember, deleteTeamMember, createClient, toggleClientVat, updateTeamMemberRate } from "@/app/actions";
 import type { TeamMember, Client, ClientRate } from "@/lib/types";
 
 const thStyle: React.CSSProperties = {
@@ -56,6 +56,31 @@ const panelStyle: React.CSSProperties = {
   padding: 20,
   marginBottom: 12,
 };
+
+function EditableRate({ value, onSave }: { value: number; onSave: (v: number) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(String(value));
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        style={{ ...inputStyle, width: 70, fontSize: 13, textAlign: "right" }}
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={() => { onSave(Number(val) || 0); setEditing(false); }}
+        onKeyDown={(e) => { if (e.key === "Enter") { onSave(Number(val) || 0); setEditing(false); } }}
+      />
+    );
+  }
+  return (
+    <span
+      onClick={() => { setVal(String(value)); setEditing(true); }}
+      style={{ cursor: "pointer", borderBottom: "1px dashed var(--s3)", fontSize: 13, color: "var(--yellow)" }}
+    >
+      ${value}/h
+    </span>
+  );
+}
 
 export function SettingsClient({
   members,
@@ -136,6 +161,7 @@ export function SettingsClient({
                 <th style={thStyle}>Name</th>
                 <th style={thStyle}>Type</th>
                 <th style={thStyle}>Role</th>
+                <th style={{ ...thStyle, textAlign: "right" }}>Rate</th>
                 <th style={thStyle}>Email</th>
                 <th style={thStyle}></th>
               </tr>
@@ -148,6 +174,13 @@ export function SettingsClient({
                     <Badge type={m.type}>{m.type}</Badge>
                   </td>
                   <td style={tdStyle}>{m.role}</td>
+                  <td style={{ ...tdStyle, textAlign: "right" }}>
+                    {m.type === "outsource" ? (
+                      <EditableRate value={m.cost_rate} onSave={(v) => updateTeamMemberRate(m.id, v)} />
+                    ) : (
+                      <span style={{ color: "var(--s3)" }}>—</span>
+                    )}
+                  </td>
                   <td style={{ ...tdStyle, color: "var(--s4)" }}>{m.email || "—"}</td>
                   <td style={{ ...tdStyle, width: 30 }}>
                     <button

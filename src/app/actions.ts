@@ -179,6 +179,11 @@ export async function deleteTeamMember(id: string) {
   revalidatePath("/settings");
 }
 
+export async function updateTeamMemberRate(id: string, costRate: number) {
+  await supabase.from("team_members").update({ cost_rate: costRate }).eq("id", id);
+  revalidatePath("/settings");
+}
+
 // ─── Outsource Months ────────────────────────────────────────
 
 export async function upsertOutsourceMonth(
