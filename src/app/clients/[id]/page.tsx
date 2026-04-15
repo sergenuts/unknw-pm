@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import type { Client, Entry, FixedItem, FixedCost, ClientMonth, ClientRate, TeamMember } from "@/lib/types";
+import type { Client, Entry, FixedItem, FixedCost, ClientMonth, ClientRate, TeamMember, OutsourceMonth } from "@/lib/types";
 import { ClientDetail } from "./client-page";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +19,7 @@ async function getData(id: string) {
     fixedRes,
     assignmentsRes,
     membersRes,
+    outsourceMonthsRes,
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).single(),
     supabase.from("entries").select("*").eq("client_id", id).order("created_at", { ascending: true }),
@@ -27,6 +28,7 @@ async function getData(id: string) {
     supabase.from("fixed_items").select("*").eq("client_id", id),
     supabase.from("team_assignments").select("*").eq("client_id", id),
     supabase.from("team_members").select("*"),
+    supabase.from("outsource_months").select("*").eq("client_id", id),
   ]);
 
   const fixed = (fixedRes.data || []) as FixedItem[];
@@ -46,6 +48,7 @@ async function getData(id: string) {
     costs,
     assignments: (assignmentsRes.data || []) as TeamAssignment[],
     members: (membersRes.data || []) as TeamMember[],
+    outsourceMonths: (outsourceMonthsRes.data || []) as OutsourceMonth[],
   };
 }
 

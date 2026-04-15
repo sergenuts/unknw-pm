@@ -179,6 +179,39 @@ export async function deleteTeamMember(id: string) {
   revalidatePath("/settings");
 }
 
+// ─── Outsource Months ────────────────────────────────────────
+
+export async function upsertOutsourceMonth(
+  clientId: string,
+  memberId: string,
+  month: string,
+  field: "rate_override" | "paid" | "status",
+  value: number | string
+) {
+  const { data: existing } = await supabase
+    .from("outsource_months")
+    .select("id")
+    .eq("client_id", clientId)
+    .eq("member_id", memberId)
+    .eq("month", month)
+    .single();
+
+  if (existing) {
+    await supabase
+      .from("outsource_months")
+      .update({ [field]: value })
+      .eq("id", existing.id);
+  } else {
+    await supabase.from("outsource_months").insert({
+      client_id: clientId,
+      member_id: memberId,
+      month,
+      [field]: value,
+    });
+  }
+  revalidatePath("/clients/" + clientId);
+}
+
 // ─── Settings: Clients ──────────────────────────────────────
 
 export async function createClient(data: {

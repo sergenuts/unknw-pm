@@ -58,6 +58,16 @@ export interface FixedItem {
   status: string;
 }
 
+export interface OutsourceMonth {
+  id: string;
+  client_id: string;
+  member_id: string;
+  month: string;
+  rate_override: number | null;
+  paid: number;
+  status: string;
+}
+
 export interface FixedCost {
   id: string;
   fixed_item_id: string;

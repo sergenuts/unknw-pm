@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/app/_components/badge";
 import { formatMoney, getCurrentMonth } from "@/lib/format";
-import type { Client, Entry, FixedItem, FixedCost, ClientMonth, ClientRate, TeamMember } from "@/lib/types";
+import type { Client, Entry, FixedItem, FixedCost, ClientMonth, ClientRate, TeamMember, OutsourceMonth } from "@/lib/types";
 import {
   upsertClientMonth,
   updateEntryField,
@@ -18,6 +18,7 @@ import {
   deleteClientRate,
   assignTeamMember,
   unassignTeamMember,
+  upsertOutsourceMonth,
 } from "@/app/actions";
 
 interface Props {
@@ -29,6 +30,7 @@ interface Props {
   costs: FixedCost[];
   assignments: { id: string; member_id: string; client_id: string }[];
   members: TeamMember[];
+  outsourceMonths: OutsourceMonth[];
 }
 
 // ─── Styles ──────────────────────────────────────────────────
@@ -203,7 +205,7 @@ function EditableValue({
 
 // ─── Main Component ──────────────────────────────────────────
 
-export function ClientDetail({ client, entries, rates, months, fixed, costs, assignments, members }: Props) {
+export function ClientDetail({ client, entries, rates, months, fixed, costs, assignments, members, outsourceMonths }: Props) {
   const cl = client;
   const cur = getCurrentMonth();
 
@@ -222,7 +224,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
   if (allMonths.length === 0) allMonths.push(cur);
 
   const [selectedMonth, setSelectedMonth] = useState(allMonths.includes(cur) ? cur : allMonths[allMonths.length - 1]);
-  const [contentTab, setContentTab] = useState<"report" | "tasks" | "fixed" | "team">("report");
+  const [contentTab, setContentTab] = useState<"report" | "tasks" | "fixed" | "outsource" | "team">("report");
   const [showAddEntry, setShowAddEntry] = useState(false);
   const [showAddFixed, setShowAddFixed] = useState(false);
   const [showAddRate, setShowAddRate] = useState(false);
@@ -280,6 +282,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
     { key: "report" as const, label: "Report" },
     { key: "tasks" as const, label: "Tasks" },
     { key: "fixed" as const, label: "Fixed Price" },
+    { key: "outsource" as const, label: "Outsource" },
     { key: "team" as const, label: "Team" },
   ];
 
@@ -740,6 +743,170 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                   </div>
                 );
               })}
+          </div>
+        )}
+
+        {/* ═══ OUTSOURCE TAB ═══ */}
+        {contentTab === "outsource" && (
+          <div>
+            {/* Current month */}
+            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", color: "var(--s3)", textTransform: "uppercase", marginBottom: 12 }}>
+              {selectedMonth}
+            </div>
+            {(() => {
+              // outsource members from entries this month
+              const outsourceOwners = new Map<string, number>();
+              mEntries.forEach((e) => {
+                const m = members.find((mb) => mb.id === e.owner_id);
+                if (m && m.type === "outsource") {
+                  outsourceOwners.set(e.owner_id, (outsourceOwners.get(e.owner_id) || 0) + e.hours * (e.coeff || 1));
+                }
+              });
+              if (outsourceOwners.size === 0) {
+                return <div style={{ color: "var(--s4)", fontSize: 13, padding: "12px 0" }}>No outsourcers this month</div>;
+              }
+              return (
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={thStyle}>Name</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>Hours</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>Rate</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>To Pay</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>Paid</th>
+                      <th style={thStyle}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from(outsourceOwners.entries()).map(([ownerId, hours]) => {
+                      const m = members.find((mb) => mb.id === ownerId)!;
+                      const om = outsourceMonths.find((o) => o.member_id === ownerId && o.month === selectedMonth);
+                      const rate = om?.rate_override ?? m.cost_rate ?? 0;
+                      const toPay = hours * rate;
+                      const paid = om?.paid || 0;
+                      const status = om?.status || "pending";
+                      return (
+                        <tr key={ownerId}>
+                          <td style={tdStyle}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <Badge type="outsource">outsource</Badge>
+                              {m.name}
+                            </div>
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: "right" }}>{hours}</td>
+                          <td style={{ ...tdStyle, textAlign: "right" }}>
+                            <EditableValue
+                              value={rate}
+                              size={13}
+                              format={(v) => fm(v)}
+                              onSave={(v) => upsertOutsourceMonth(cl.id, ownerId, selectedMonth, "rate_override", v)}
+                            />
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>{fm(toPay)}</td>
+                          <td style={{ ...tdStyle, textAlign: "right" }}>
+                            <EditableValue
+                              value={paid}
+                              size={13}
+                              format={(v) => fm(v)}
+                              onSave={(v) => upsertOutsourceMonth(cl.id, ownerId, selectedMonth, "paid", v)}
+                            />
+                          </td>
+                          <td style={tdStyle}>
+                            <select
+                              value={status}
+                              onChange={(ev) => upsertOutsourceMonth(cl.id, ownerId, selectedMonth, "status", ev.target.value)}
+                              style={{
+                                ...selectStyle,
+                                width: "auto",
+                                padding: "3px 6px",
+                                fontSize: 11,
+                                color: status === "paid" ? "var(--green)" : status === "partial" ? "var(--yellow)" : "var(--purple)",
+                              }}
+                            >
+                              {["pending", "partial", "paid"].map((s) => (
+                                <option key={s} value={s}>{s}</option>
+                              ))}
+                            </select>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              );
+            })()}
+
+            {/* History — all other months */}
+            <div style={{ marginTop: 40 }}>
+              <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", color: "var(--s3)", textTransform: "uppercase", marginBottom: 12 }}>
+                History
+              </div>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>Month</th>
+                    <th style={thStyle}>Outsourcer</th>
+                    <th style={{ ...thStyle, textAlign: "right" }}>Hours</th>
+                    <th style={{ ...thStyle, textAlign: "right" }}>To Pay</th>
+                    <th style={{ ...thStyle, textAlign: "right" }}>Paid</th>
+                    <th style={thStyle}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allMonths.map((month) => {
+                    const monthEntries = entries.filter((e) => e.month === month);
+                    const outsourceMap = new Map<string, number>();
+                    monthEntries.forEach((e) => {
+                      const m = members.find((mb) => mb.id === e.owner_id);
+                      if (m && m.type === "outsource") {
+                        outsourceMap.set(e.owner_id, (outsourceMap.get(e.owner_id) || 0) + e.hours * (e.coeff || 1));
+                      }
+                    });
+                    return Array.from(outsourceMap.entries()).map(([ownerId, hours]) => {
+                      const m = members.find((mb) => mb.id === ownerId)!;
+                      const om = outsourceMonths.find((o) => o.member_id === ownerId && o.month === month);
+                      const rate = om?.rate_override ?? m.cost_rate ?? 0;
+                      const toPay = hours * rate;
+                      const paid = om?.paid || 0;
+                      const status = om?.status || "pending";
+                      return (
+                        <tr key={month + ownerId}>
+                          <td style={tdStyle}>{month}</td>
+                          <td style={tdStyle}>{m.name}</td>
+                          <td style={{ ...tdStyle, textAlign: "right" }}>{hours}</td>
+                          <td style={{ ...tdStyle, textAlign: "right" }}>{fm(toPay)}</td>
+                          <td style={{ ...tdStyle, textAlign: "right" }}>
+                            <EditableValue
+                              value={paid}
+                              size={13}
+                              format={(v) => fm(v)}
+                              onSave={(v) => upsertOutsourceMonth(cl.id, ownerId, month, "paid", v)}
+                            />
+                          </td>
+                          <td style={tdStyle}>
+                            <select
+                              value={status}
+                              onChange={(ev) => upsertOutsourceMonth(cl.id, ownerId, month, "status", ev.target.value)}
+                              style={{
+                                ...selectStyle,
+                                width: "auto",
+                                padding: "3px 6px",
+                                fontSize: 11,
+                                color: status === "paid" ? "var(--green)" : status === "partial" ? "var(--yellow)" : "var(--purple)",
+                              }}
+                            >
+                              {["pending", "partial", "paid"].map((s) => (
+                                <option key={s} value={s}>{s}</option>
+                              ))}
+                            </select>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
