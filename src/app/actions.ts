@@ -35,15 +35,15 @@ export async function upsertClientMonth(
 
 // ─── Entries ─────────────────────────────────────────────────
 
-export async function updateEntryCoeff(entryId: string, coeff: number, clientId: string) {
-  await supabase.from("entries").update({ coeff }).eq("id", entryId);
+export async function updateEntryField(
+  entryId: string,
+  field: string,
+  value: string | number,
+  clientId: string
+) {
+  await supabase.from("entries").update({ [field]: value }).eq("id", entryId);
   revalidatePath("/clients/" + clientId);
-}
-
-export async function updateEntryStatus(entryId: string, status: string, clientId: string) {
-  await supabase.from("entries").update({ status }).eq("id", entryId);
-  revalidatePath("/clients/" + clientId);
-  revalidatePath("/approvals");
+  if (field === "status") revalidatePath("/approvals");
 }
 
 export async function deleteEntry(entryId: string, clientId: string) {

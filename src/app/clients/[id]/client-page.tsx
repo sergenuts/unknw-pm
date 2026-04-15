@@ -7,8 +7,7 @@ import { formatMoney, getCurrentMonth } from "@/lib/format";
 import type { Client, Entry, FixedItem, FixedCost, ClientMonth, ClientRate, TeamMember } from "@/lib/types";
 import {
   upsertClientMonth,
-  updateEntryCoeff,
-  updateEntryStatus,
+  updateEntryField,
   deleteEntry,
   createEntry,
   createFixedItem,
@@ -89,6 +88,59 @@ const panelStyle: React.CSSProperties = {
   padding: 20,
   marginBottom: 12,
 };
+
+// ─── Editable inline text ────────────────────────────────────
+
+function EditableText({
+  value,
+  onSave,
+  placeholder = "—",
+}: {
+  value: string;
+  onSave: (v: string) => void;
+  placeholder?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(value);
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        style={{ ...inputStyle, width: "100%", fontSize: 13 }}
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={() => {
+          onSave(val);
+          setEditing(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            onSave(val);
+            setEditing(false);
+          }
+        }}
+      />
+    );
+  }
+
+  return (
+    <span
+      onClick={() => {
+        setVal(value);
+        setEditing(true);
+      }}
+      style={{
+        cursor: "pointer",
+        borderBottom: "1px dashed var(--s3)",
+        fontSize: 13,
+        color: value ? "var(--fg)" : "var(--s4)",
+      }}
+    >
+      {value || placeholder}
+    </span>
+  );
+}
 
 // ─── Editable inline value ───────────────────────────────────
 
@@ -406,27 +458,63 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                 </thead>
                 <tbody>
                   {mEntries.map((e) => {
-                    const owner = members.find((m) => m.id === e.owner_id);
                     const amt = e.hours * (e.coeff || 1) * getRate(e.role);
                     return (
                       <tr key={e.id}>
-                        <td style={tdStyle}>{e.date || "—"}</td>
-                        <td style={tdStyle}>{e.task}</td>
-                        <td style={tdStyle}>{owner?.name || "—"}</td>
-                        <td style={tdStyle}>{e.role}</td>
-                        <td style={{ ...tdStyle, textAlign: "right" }}>{e.hours}</td>
+                        <td style={tdStyle}>
+                          <EditableText
+                            value={e.date || ""}
+                            placeholder="—"
+                            onSave={(v) => updateEntryField(e.id, "date", v, cl.id)}
+                          />
+                        </td>
+                        <td style={tdStyle}>
+                          <EditableText
+                            value={e.task}
+                            onSave={(v) => updateEntryField(e.id, "task", v, cl.id)}
+                          />
+                        </td>
+                        <td style={tdStyle}>
+                          <select
+                            value={e.owner_id}
+                            onChange={(ev) => updateEntryField(e.id, "owner_id", ev.target.value, cl.id)}
+                            style={{ ...selectStyle, width: "auto", padding: "3px 6px", fontSize: 13 }}
+                          >
+                            {members.map((m) => (
+                              <option key={m.id} value={m.id}>{m.name}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td style={tdStyle}>
+                          <select
+                            value={e.role}
+                            onChange={(ev) => updateEntryField(e.id, "role", ev.target.value, cl.id)}
+                            style={{ ...selectStyle, width: "auto", padding: "3px 6px", fontSize: 13 }}
+                          >
+                            {rates.map((r) => (
+                              <option key={r.id} value={r.role}>{r.role}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td style={{ ...tdStyle, textAlign: "right" }}>
+                          <EditableValue
+                            value={e.hours}
+                            size={13}
+                            onSave={(v) => updateEntryField(e.id, "hours", v, cl.id)}
+                          />
+                        </td>
                         <td style={{ ...tdStyle, textAlign: "right" }}>
                           <EditableValue
                             value={e.coeff}
                             size={13}
-                            onSave={(v) => updateEntryCoeff(e.id, v, cl.id)}
+                            onSave={(v) => updateEntryField(e.id, "coeff", v, cl.id)}
                           />
                         </td>
                         <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>{fm(amt)}</td>
                         <td style={tdStyle}>
                           <select
                             value={e.status}
-                            onChange={(ev) => updateEntryStatus(e.id, ev.target.value, cl.id)}
+                            onChange={(ev) => updateEntryField(e.id, "status", ev.target.value, cl.id)}
                             style={{
                               ...selectStyle,
                               width: "auto",
