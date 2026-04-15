@@ -1,32 +1,24 @@
-export default function ApprovalsPage() {
-  return (
-    <div>
-      <div
-        style={{
-          fontSize: 11,
-          color: "var(--s3)",
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          marginBottom: 8,
-        }}
-      >
-        002 — APPROVALS
-      </div>
-      <h1
-        style={{
-          fontSize: 28,
-          fontWeight: 800,
-          color: "var(--fg)",
-          textTransform: "uppercase",
-          lineHeight: 0.92,
-          margin: 0,
-        }}
-      >
-        PENDING <span style={{ fontWeight: 300 }}>REVIEW</span>
-      </h1>
-      <p style={{ color: "var(--s4)", marginTop: 16, fontSize: 13 }}>
-        Will be built by Claude Code — see RULES.md for spec.
-      </p>
-    </div>
-  );
+import { supabase } from "@/lib/supabase";
+import type { Entry, TeamMember, Client } from "@/lib/types";
+import { ApprovalsClient } from "./approvals-client";
+
+export const dynamic = "force-dynamic";
+
+async function getData() {
+  const [entriesRes, membersRes, clientsRes] = await Promise.all([
+    supabase.from("entries").select("*").eq("status", "submitted"),
+    supabase.from("team_members").select("*"),
+    supabase.from("clients").select("*"),
+  ]);
+  return {
+    entries: (entriesRes.data || []) as Entry[],
+    members: (membersRes.data || []) as TeamMember[],
+    clients: (clientsRes.data || []) as Client[],
+  };
+}
+
+export default async function ApprovalsPage() {
+  const { entries, members, clients } = await getData();
+
+  return <ApprovalsClient entries={entries} members={members} clients={clients} />;
 }
