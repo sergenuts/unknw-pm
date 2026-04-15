@@ -1,50 +1,65 @@
-import Link from "next/link";
+import { supabase } from "@/lib/supabase";
+import type { Client, Entry, FixedItem, FixedCost, ClientMonth, ClientRate, TeamMember } from "@/lib/types";
+import { ClientDetail } from "./client-page";
+
+export const dynamic = "force-dynamic";
+
+interface TeamAssignment {
+  id: string;
+  member_id: string;
+  client_id: string;
+}
+
+async function getData(id: string) {
+  const [
+    clientRes,
+    entriesRes,
+    ratesRes,
+    monthsRes,
+    fixedRes,
+    teamRes,
+    assignRes,
+    membersRes,
+  ] = await Promise.all([
+    supabase.from("clients").select("*").eq("id", id).single(),
+    supabase.from("entries").select("*").eq("client_id", id).order("created_at", { ascending: true }),
+    supabase.from("client_rates").select("*").eq("client_id", id),
+    supabase.from("client_months").select("*").eq("client_id", id),
+    supabase.from("fixed_items").select("*").eq("client_id", id),
+    supabase.from("team_assignments").select("*").eq("client_id", id),
+    supabase.from("team_members").select("*"),
+    supabase.from("fixed_costs").select("*"),
+  ]);
+
+  const fixed = (fixedRes.data || []) as FixedItem[];
+  const allCosts = (membersRes.data ? [] : []) as FixedCost[];
+  // fetch costs for this client's fixed items
+  const fixedIds = fixed.map((f) => f.id);
+  let costs: FixedCost[] = [];
+  if (fixedIds.length > 0) {
+    const { data } = await supabase.from("fixed_costs").select("*").in("fixed_item_id", fixedIds);
+    costs = (data || []) as FixedCost[];
+  }
+
+  return {
+    client: clientRes.data as Client,
+    entries: (entriesRes.data || []) as Entry[],
+    rates: (ratesRes.data || []) as ClientRate[],
+    months: (monthsRes.data || []) as ClientMonth[],
+    fixed,
+    costs,
+    assignments: (teamRes.data || []) as TeamAssignment[],
+    members: (assignRes.data || []) as TeamMember[],
+  };
+}
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const data = await getData(id);
 
-  return (
-    <div>
-      <Link
-        href="/"
-        style={{
-          color: "var(--s4)",
-          fontSize: 12,
-          textDecoration: "none",
-          textTransform: "uppercase",
-          letterSpacing: "0.04em",
-        }}
-      >
-        ← BACK
-      </Link>
-      <div style={{ marginTop: 16 }}>
-        <div
-          style={{
-            fontSize: 11,
-            color: "var(--s3)",
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            marginBottom: 8,
-          }}
-        >
-          CLIENT DETAIL
-        </div>
-        <h1
-          style={{
-            fontSize: 28,
-            fontWeight: 800,
-            color: "var(--fg)",
-            textTransform: "uppercase",
-            lineHeight: 0.92,
-            margin: 0,
-          }}
-        >
-          LOADING...
-        </h1>
-        <p style={{ color: "var(--s4)", marginTop: 16, fontSize: 13 }}>
-          Client ID: {id}. This page will be built by Claude Code — see RULES.md for spec.
-        </p>
-      </div>
-    </div>
-  );
+  if (!data.client) {
+    return <div style={{ color: "var(--s4)", padding: 40 }}>Client not found</div>;
+  }
+
+  return <ClientDetail {...data} />;
 }
