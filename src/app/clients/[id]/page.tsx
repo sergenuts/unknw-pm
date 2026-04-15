@@ -17,8 +17,7 @@ async function getData(id: string) {
     ratesRes,
     monthsRes,
     fixedRes,
-    teamRes,
-    assignRes,
+    assignmentsRes,
     membersRes,
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).single(),
@@ -28,12 +27,9 @@ async function getData(id: string) {
     supabase.from("fixed_items").select("*").eq("client_id", id),
     supabase.from("team_assignments").select("*").eq("client_id", id),
     supabase.from("team_members").select("*"),
-    supabase.from("fixed_costs").select("*"),
   ]);
 
   const fixed = (fixedRes.data || []) as FixedItem[];
-  const allCosts = (membersRes.data ? [] : []) as FixedCost[];
-  // fetch costs for this client's fixed items
   const fixedIds = fixed.map((f) => f.id);
   let costs: FixedCost[] = [];
   if (fixedIds.length > 0) {
@@ -48,8 +44,8 @@ async function getData(id: string) {
     months: (monthsRes.data || []) as ClientMonth[],
     fixed,
     costs,
-    assignments: (teamRes.data || []) as TeamAssignment[],
-    members: (assignRes.data || []) as TeamMember[],
+    assignments: (assignmentsRes.data || []) as TeamAssignment[],
+    members: (membersRes.data || []) as TeamMember[],
   };
 }
 

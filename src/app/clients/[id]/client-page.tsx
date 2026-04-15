@@ -773,57 +773,31 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
               )}
             </div>
 
-            {/* Assigned contractors */}
+            {/* Contractors this month — outsource people from entries */}
             <div style={{ marginBottom: 32 }}>
               <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", color: "var(--s3)", textTransform: "uppercase", marginBottom: 12 }}>
-                Assigned Contractors
+                Contractors this month
               </div>
-              {assignments.map((a) => {
-                const m = members.find((mb) => mb.id === a.member_id);
-                if (!m) return null;
-                return (
-                  <div
-                    key={a.id}
-                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--s2)" }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <Badge type="outsource">outsource</Badge>
-                      <span style={{ fontSize: 13 }}>{m.name}</span>
-                      <span style={{ fontSize: 12, color: "var(--s4)" }}>{m.role}</span>
-                    </div>
-                    <button
-                      onClick={() => unassignTeamMember(m.id, cl.id)}
-                      style={{ ...btnStyle, background: "var(--s2)", color: "var(--s4)", fontSize: 10, padding: "3px 8px" }}
-                    >
-                      REMOVE
-                    </button>
-                  </div>
-                );
-              })}
-
-              {/* Assign dropdown */}
               {(() => {
-                const assignedIds = assignments.map((a) => a.member_id);
-                const available = members.filter((m) => m.type === "outsource" && !assignedIds.includes(m.id));
-                if (available.length === 0) return null;
-                return (
-                  <select
-                    style={{ ...selectStyle, marginTop: 12, width: "auto" }}
-                    value=""
-                    onChange={(e) => {
-                      if (e.target.value) assignTeamMember(e.target.value, cl.id);
-                    }}
-                  >
-                    <option value="">+ assign...</option>
-                    {available.map((m) => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  </select>
+                const outsourceIds = new Set(
+                  mEntries.map((e) => e.owner_id).filter((id) => {
+                    const m = members.find((mb) => mb.id === id);
+                    return m && m.type === "outsource";
+                  })
                 );
+                const items = Array.from(outsourceIds).map((id) => members.find((mb) => mb.id === id)).filter(Boolean);
+                if (items.length === 0) return <div style={{ color: "var(--s4)", fontSize: 13 }}>No contractors this month</div>;
+                return items.map((m) => (
+                  <div key={m!.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--s2)" }}>
+                    <Badge type="outsource">outsource</Badge>
+                    <span style={{ fontSize: 13 }}>{m!.name}</span>
+                    <span style={{ fontSize: 12, color: "var(--s4)" }}>{m!.role}</span>
+                  </div>
+                ));
               })()}
             </div>
 
-            {/* Internal this month */}
+            {/* Internal this month — internal people from entries */}
             <div>
               <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", color: "var(--s3)", textTransform: "uppercase", marginBottom: 12 }}>
                 Internal this month
@@ -835,17 +809,15 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                     return m && m.type === "internal";
                   })
                 );
-                return Array.from(internalIds).map((id) => {
-                  const m = members.find((mb) => mb.id === id);
-                  if (!m) return null;
-                  return (
-                    <div key={id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--s2)" }}>
-                      <Badge type="internal">internal</Badge>
-                      <span style={{ fontSize: 13 }}>{m.name}</span>
-                      <span style={{ fontSize: 12, color: "var(--s4)" }}>{m.role}</span>
-                    </div>
-                  );
-                });
+                const items = Array.from(internalIds).map((id) => members.find((mb) => mb.id === id)).filter(Boolean);
+                if (items.length === 0) return <div style={{ color: "var(--s4)", fontSize: 13 }}>No internal members this month</div>;
+                return items.map((m) => (
+                  <div key={m!.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--s2)" }}>
+                    <Badge type="internal">internal</Badge>
+                    <span style={{ fontSize: 13 }}>{m!.name}</span>
+                    <span style={{ fontSize: 12, color: "var(--s4)" }}>{m!.role}</span>
+                  </div>
+                ));
               })()}
             </div>
           </div>
