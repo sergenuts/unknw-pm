@@ -423,7 +423,14 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                       <td style={{ ...tdStyle, textAlign: "right" }}>{r.hours}</td>
                       <td style={{ ...tdStyle, textAlign: "right" }}>{fm(r.billed)}</td>
                       <td style={{ ...tdStyle, textAlign: "right", color: "var(--s4)" }}>{fm(r.estimate)}</td>
-                      <td style={{ ...tdStyle, textAlign: "right" }}>{fm(r.paid)}</td>
+                      <td style={{ ...tdStyle, textAlign: "right" }}>
+                        <EditableValue
+                          value={r.paid}
+                          size={13}
+                          format={(v) => fm(v)}
+                          onSave={(v) => upsertClientMonth(cl.id, r.month, "paid", v)}
+                        />
+                      </td>
                       <td style={{ ...tdStyle, textAlign: "right", color: r.owes > 0 ? "var(--red)" : "var(--green)" }}>
                         {r.owes <= 0 ? "settled" : fm(r.owes)}
                       </td>
