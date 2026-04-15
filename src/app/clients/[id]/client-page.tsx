@@ -261,13 +261,19 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
     roleMap.set(e.role, ex);
   });
 
-  // All months summary
+  // All months summary with rolling balance (overpayment carries forward)
+  let carryOver = 0;
   const allMonthsSummary = allMonths.map((m) => {
     const me = entries.filter((e) => e.month === m && e.status === "done");
     const h = me.reduce((s, e) => s + e.hours * (e.coeff || 1), 0);
     const b = me.reduce((s, e) => s + e.hours * (e.coeff || 1) * getRate(e.role), 0);
     const md = months.find((cm) => cm.month === m);
-    return { month: m, hours: h, billed: b, estimate: md?.estimate || 0, paid: md?.paid || 0, owes: b - (md?.paid || 0) };
+    const paid = md?.paid || 0;
+    const rawOwes = b - paid - carryOver;
+    const owes = rawOwes;
+    // if overpaid this month, carry surplus to next
+    carryOver = owes < 0 ? Math.abs(owes) : 0;
+    return { month: m, hours: h, billed: b, estimate: md?.estimate || 0, paid, owes };
   });
 
   const contentTabs = [
@@ -432,7 +438,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                         />
                       </td>
                       <td style={{ ...tdStyle, textAlign: "right", color: r.owes > 0 ? "var(--red)" : "var(--green)" }}>
-                        {r.owes <= 0 ? "settled" : fm(r.owes)}
+                        {r.owes > 0 ? fm(r.owes) : r.owes < 0 ? "+" + fm(Math.abs(r.owes)) : "settled"}
                       </td>
                     </tr>
                   ))}
