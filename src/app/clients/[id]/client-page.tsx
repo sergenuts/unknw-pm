@@ -227,12 +227,21 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
   const [showAddFixed, setShowAddFixed] = useState(false);
   const [showAddRate, setShowAddRate] = useState(false);
   const [showAddCost, setShowAddCost] = useState<string | null>(null);
+  const [entryOrder, setEntryOrder] = useState<string[]>([]);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
 
   const getRate = (role: string) => rates.find((r) => r.role === role)?.rate || 0;
   const fm = (v: number) => formatMoney(v, cl.currency);
 
   // Month data
-  const mEntries = entries.filter((e) => e.month === selectedMonth);
+  const mEntriesRaw = entries.filter((e) => e.month === selectedMonth);
+  // apply client-side drag reorder
+  const mEntries = entryOrder.length > 0
+    ? entryOrder
+        .map((id) => mEntriesRaw.find((e) => e.id === id))
+        .filter(Boolean)
+        .concat(mEntriesRaw.filter((e) => !entryOrder.includes(e.id))) as Entry[]
+    : mEntriesRaw;
   const mDone = mEntries.filter((e) => e.status === "done");
   const mHours = mDone.reduce((s, e) => s + e.hours * (e.coeff || 1), 0);
   const mBilled = mDone.reduce((s, e) => s + e.hours * (e.coeff || 1) * getRate(e.role), 0);
@@ -445,6 +454,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
               <table style={tableStyle}>
                 <thead>
                   <tr>
+                    <th style={{ ...thStyle, width: 20 }}></th>
                     <th style={thStyle}>Date</th>
                     <th style={thStyle}>Task</th>
                     <th style={thStyle}>Owner</th>
@@ -457,10 +467,33 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                   </tr>
                 </thead>
                 <tbody>
-                  {mEntries.map((e) => {
+                  {mEntries.map((e, idx) => {
                     const amt = e.hours * (e.coeff || 1) * getRate(e.role);
                     return (
-                      <tr key={e.id}>
+                      <tr
+                        key={e.id}
+                        draggable
+                        onDragStart={() => setDragIdx(idx)}
+                        onDragOver={(ev) => {
+                          ev.preventDefault();
+                          ev.currentTarget.style.borderTop = "2px solid var(--accent)";
+                        }}
+                        onDragLeave={(ev) => {
+                          ev.currentTarget.style.borderTop = "";
+                        }}
+                        onDrop={(ev) => {
+                          ev.currentTarget.style.borderTop = "";
+                          if (dragIdx === null || dragIdx === idx) return;
+                          const ids = mEntries.map((x) => x.id);
+                          const [moved] = ids.splice(dragIdx, 1);
+                          ids.splice(idx, 0, moved);
+                          setEntryOrder(ids);
+                          setDragIdx(null);
+                        }}
+                        onDragEnd={() => setDragIdx(null)}
+                        style={{ cursor: "grab", opacity: dragIdx === idx ? 0.4 : 1 }}
+                      >
+                        <td style={{ ...tdStyle, cursor: "grab", color: "var(--s3)", width: 20, fontSize: 11, userSelect: "none" }}>⠿</td>
                         <td style={tdStyle}>
                           <EditableText
                             value={e.date || ""}
@@ -830,44 +863,31 @@ function SummaryStats({
   hours: number; billed: number; estimate: number; paid: number; owes: number;
   fm: (v: number) => string; clientId: string; month: string;
 }) {
+  const labelStyle: React.CSSProperties = { fontSize: 9, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 3 };
   return (
-    <div style={panelStyle}>
-      <div style={{ display: "flex", gap: 40, marginBottom: 12 }}>
-        <div>
-          <div style={{ fontSize: 22, fontWeight: 800, lineHeight: 1 }}>{hours.toFixed(1)}</div>
-          <div style={{ fontSize: 10, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 }}>hours</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "var(--green)", lineHeight: 1 }}>{fm(billed)}</div>
-          <div style={{ fontSize: 10, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 }}>billed</div>
-        </div>
+    <div style={{ ...panelStyle, display: "flex", alignItems: "flex-end", gap: 32, padding: "14px 20px" }}>
+      <div>
+        <div style={{ fontSize: 20, fontWeight: 800, lineHeight: 1 }}>{hours.toFixed(1)}</div>
+        <div style={labelStyle}>hours</div>
       </div>
-      <div style={{ borderTop: "1px solid var(--s2)", paddingTop: 12, display: "flex", gap: 32 }}>
-        <div>
-          <EditableValue
-            value={estimate}
-            size={16}
-            color="var(--s4)"
-            format={(v) => fm(v)}
-            onSave={(v) => upsertClientMonth(clientId, month, "estimate", v)}
-          />
-          <div style={{ fontSize: 9, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 }}>estimate</div>
+      <div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: "var(--green)", lineHeight: 1 }}>{fm(billed)}</div>
+        <div style={labelStyle}>billed</div>
+      </div>
+      <div style={{ width: 1, height: 28, background: "var(--s2)" }} />
+      <div>
+        <EditableValue value={estimate} size={14} color="var(--s4)" format={(v) => fm(v)} onSave={(v) => upsertClientMonth(clientId, month, "estimate", v)} />
+        <div style={labelStyle}>estimate</div>
+      </div>
+      <div>
+        <EditableValue value={paid} size={14} format={(v) => fm(v)} onSave={(v) => upsertClientMonth(clientId, month, "paid", v)} />
+        <div style={labelStyle}>paid</div>
+      </div>
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: owes > 0 ? "var(--red)" : "var(--green)", lineHeight: 1 }}>
+          {owes <= 0 ? "settled" : fm(owes)}
         </div>
-        <div>
-          <EditableValue
-            value={paid}
-            size={16}
-            format={(v) => fm(v)}
-            onSave={(v) => upsertClientMonth(clientId, month, "paid", v)}
-          />
-          <div style={{ fontSize: 9, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 }}>paid</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 800, color: owes > 0 ? "var(--red)" : "var(--green)", lineHeight: 1 }}>
-            {owes <= 0 ? "settled" : fm(owes)}
-          </div>
-          <div style={{ fontSize: 9, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 }}>owes</div>
-        </div>
+        <div style={labelStyle}>owes</div>
       </div>
     </div>
   );
