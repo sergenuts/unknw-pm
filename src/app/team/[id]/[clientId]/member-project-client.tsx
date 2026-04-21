@@ -134,13 +134,21 @@ export function MemberProjectClient({
   );
   const [showAdd, setShowAdd] = useState<null | "hours_task" | "hours_week" | "fixed_task">(null);
 
+  const entrySortKey = (e: Entry): number => {
+    if (e.date) {
+      if (/^\d{4}-\d{2}-\d{2}/.test(e.date)) {
+        const t = Date.parse(e.date);
+        if (!isNaN(t)) return t;
+      }
+      const n = parseInt(e.date, 10);
+      if (!isNaN(n)) return n;
+    }
+    if (e.week_num) return (e.week_num - 1) * 7 + 1;
+    return 0;
+  };
   const mEntriesAll = entries
     .filter((e) => e.month === selectedMonth)
-    .sort((a, b) => {
-      const ka = Number(a.date) || (a.week_num ? a.week_num * 7 : 0);
-      const kb = Number(b.date) || (b.week_num ? b.week_num * 7 : 0);
-      return kb - ka;
-    });
+    .sort((a, b) => entrySortKey(b) - entrySortKey(a));
   const mEntries = mEntriesAll.filter((e) => e.status !== "rejected" && e.status !== "paused");
   const mFixedItems = fixedItems.filter((f) => f.month === selectedMonth);
   const mFixedCosts = [...fixedCosts.filter((c) =>
