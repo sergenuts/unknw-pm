@@ -17,9 +17,11 @@ async function getData(memberId: string) {
     supabase.from("fixed_costs").select("*").eq("member_id", memberId),
     supabase.from("fixed_items").select("*"),
   ]);
+  const assignments = (assignRes.data || []) as { client_id: string; cost_rate: number | null }[];
   return {
     member: memberRes.data as TeamMember | null,
-    assignedClientIds: (assignRes.data || []).map((a: { client_id: string }) => a.client_id),
+    assignments,
+    assignedClientIds: assignments.map((a) => a.client_id),
     clients: (clientsRes.data || []) as Client[],
     entries: (entriesRes.data || []) as Entry[],
     rates: (ratesRes.data || []) as ClientRate[],
@@ -31,7 +33,7 @@ async function getData(memberId: string) {
 export default async function MemberPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   await guardMemberPage(id);
-  const { member, assignedClientIds, clients, entries, rates, fixedCosts, fixedItems } = await getData(id);
+  const { member, assignments, assignedClientIds, clients, entries, rates, fixedCosts, fixedItems } = await getData(id);
   if (!member) return <div style={{ color: "var(--s4)" }}>Member not found</div>;
   const cur = getCurrentMonth();
   const assigned = clients.filter((c) => assignedClientIds.includes(c.id));
@@ -69,7 +71,10 @@ export default async function MemberPage({ params }: { params: Promise<{ id: str
             const mineCur = mine.filter((e) => e.month === cur);
             const hoursCur = mineCur.reduce((s, e) => s + (e.hours || 0), 0);
             const fixedCur = mineCur.filter((e) => e.entry_type === "fixed_task").reduce((s, e) => s + (e.amount || 0), 0);
-            const myRate = rates.find((r) => r.client_id === c.id && r.role === member.role)?.rate || 0;
+            const assignRate = assignments.find((a) => a.client_id === c.id)?.cost_rate ?? null;
+            const myRate = member.type === "outsource"
+              ? (assignRate ?? member.cost_rate ?? 0)
+              : (rates.find((r) => r.client_id === c.id && r.role === member.role)?.rate || 0);
             const fixedCostsCur = fixedCosts
               .filter((fc) => {
                 const fi = fixedItemById.get(fc.fixed_item_id);
