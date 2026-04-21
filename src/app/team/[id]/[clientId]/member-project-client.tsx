@@ -155,7 +155,10 @@ export function MemberProjectClient({
   const mFixedCosts = [...fixedCosts.filter((c) =>
     mFixedItems.some((f) => f.id === c.fixed_item_id),
   )].reverse();
-  const rateFor = (role: string) => rates.find((r) => r.role === role)?.rate || 0;
+  const isOutsource = member.type === "outsource";
+  const projectRateFor = (role: string) => rates.find((r) => r.role === role)?.rate || 0;
+  const ownRate = assignmentCostRate ?? member.cost_rate ?? 0;
+  const rateFor = (role: string) => (isOutsource ? ownRate : projectRateFor(role));
   const fm = (v: number) => formatMoney(v, client.currency);
 
   const isBilledEntry = (s: string) => s === "done";
@@ -193,12 +196,13 @@ export function MemberProjectClient({
         <h1 style={{ fontSize: 28, fontWeight: 800, textTransform: "uppercase", lineHeight: 0.92, margin: "8px 0 0", color: "var(--fg)" }}>
           {client.name}
         </h1>
-        <div style={{ fontSize: 12, color: "var(--s4)", marginTop: 8 }}>
-          Rates: {rates.length === 0 ? "none" : rates.map((r) => `${r.role} ${fm(r.rate)}/h`).join(" · ")}
-        </div>
-        {member.type === "outsource" && assignmentCostRate != null && (
-          <div style={{ fontSize: 12, color: "var(--yellow)", marginTop: 4 }}>
-            Your rate on this project: {fm(assignmentCostRate)}/h
+        {member.type === "outsource" ? (
+          <div style={{ fontSize: 12, color: "var(--yellow)", marginTop: 8 }}>
+            Your rate on this project: {assignmentCostRate != null ? `${fm(assignmentCostRate)}/h` : "not set"}
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: "var(--s4)", marginTop: 8 }}>
+            Rates: {rates.length === 0 ? "none" : rates.map((r) => `${r.role} ${fm(r.rate)}/h`).join(" · ")}
           </div>
         )}
       </div>
@@ -324,9 +328,11 @@ export function MemberProjectClient({
                           />
                         );
                       })()}
-                      <span style={{ color: r === 0 ? "var(--red)" : "var(--s4)", fontSize: 11, marginLeft: 8 }}>
-                        · {e.role}{r === 0 ? " (no rate)" : ""}
-                      </span>
+                      {!isOutsource && (
+                        <span style={{ color: r === 0 ? "var(--red)" : "var(--s4)", fontSize: 11, marginLeft: 8 }}>
+                          · {e.role}{r === 0 ? " (no rate)" : ""}
+                        </span>
+                      )}
                     </td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>
                       <InlineEdit
