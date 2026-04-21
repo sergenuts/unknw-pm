@@ -208,7 +208,8 @@ function EditableValue({
 
 // ─── Main Component ──────────────────────────────────────────
 
-export function ClientDetail({ client, entries, rates, months, fixed, costs, assignments, members, outsourceMonths }: Props) {
+export function ClientDetail({ client, entries, rates, months, fixed, costs, assignments, members: membersRaw, outsourceMonths }: Props) {
+  const members = [...membersRaw].sort((a, b) => a.name.localeCompare(b.name));
   const cl = client;
   const cur = getCurrentMonth();
 

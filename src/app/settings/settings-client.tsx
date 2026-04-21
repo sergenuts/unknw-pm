@@ -135,7 +135,7 @@ function EditableLead({ value, onSave }: { value: string; onSave: (v: string) =>
 }
 
 export function SettingsClient({
-  members,
+  members: membersRaw,
   clients,
   rates,
 }: {
@@ -143,6 +143,7 @@ export function SettingsClient({
   clients: Client[];
   rates: ClientRate[];
 }) {
+  const members = [...membersRaw].sort((a, b) => a.name.localeCompare(b.name));
   const [tab, setTab] = useState<"team" | "clients" | "rates">("team");
   const [showAddMember, setShowAddMember] = useState(false);
   const [showAddClient, setShowAddClient] = useState(false);
