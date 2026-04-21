@@ -1141,31 +1141,38 @@ function AddCostForm({
   fixedItemId: string; clientId: string; members: TeamMember[]; onClose: () => void;
 }) {
   const [costType, setCostType] = useState<"outsourcer" | "direct">("outsourcer");
-  const outsourcers = members.filter((m) => m.type === "outsource");
+  const assignable = members;
 
   // outsourcer fields
-  const [memberId, setMemberId] = useState(outsourcers[0]?.id || "");
+  const [memberId, setMemberId] = useState(assignable[0]?.id || "");
   const [hours, setHours] = useState("");
+  const [rate, setRate] = useState(String(assignable[0]?.cost_rate || 0));
 
   // direct fields
   const [desc, setDesc] = useState("");
   const [amount, setAmount] = useState("");
 
+  function onMemberChange(id: string) {
+    setMemberId(id);
+    const m = assignable.find((x) => x.id === id);
+    setRate(String(m?.cost_rate || 0));
+  }
+
   async function handleSubmit() {
     if (costType === "outsourcer") {
-      const m = members.find((mb) => mb.id === memberId);
+      const m = assignable.find((mb) => mb.id === memberId);
       if (!m || !hours) return;
       const h = Number(hours);
-      const rate = m.cost_rate || 0;
+      const r = Number(rate) || 0;
       await createFixedCost({
         fixed_item_id: fixedItemId,
         type: "outsourcer",
         description: `${m.name} — ${h}h`,
-        amount: h * rate,
+        amount: h * r,
         status: "planned",
         member_id: m.id,
         hours: h,
-        rate,
+        rate: r,
         clientId,
       });
     } else {
@@ -1203,15 +1210,23 @@ function AddCostForm({
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
           <div>
             <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Person</div>
-            <select style={{ ...selectStyle, width: 130 }} value={memberId} onChange={(e) => setMemberId(e.target.value)}>
-              {outsourcers.map((m) => (
-                <option key={m.id} value={m.id}>{m.name} ({formatMoney(m.cost_rate, "GBP")}/h)</option>
+            <select style={{ ...selectStyle, width: 170 }} value={memberId} onChange={(e) => onMemberChange(e.target.value)}>
+              {assignable.length === 0 && <option value="">— no members —</option>}
+              {assignable.map((m) => (
+                <option key={m.id} value={m.id}>{m.name} · {m.type}</option>
               ))}
             </select>
           </div>
           <div>
             <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Hours</div>
             <input style={{ ...inputStyle, width: 70 }} type="number" value={hours} onChange={(e) => setHours(e.target.value)} />
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Rate</div>
+            <input style={{ ...inputStyle, width: 70 }} type="number" value={rate} onChange={(e) => setRate(e.target.value)} />
+          </div>
+          <div style={{ color: "var(--s4)", fontSize: 12, whiteSpace: "nowrap" }}>
+            = {formatMoney((Number(hours) || 0) * (Number(rate) || 0), "GBP")}
           </div>
           <button onClick={handleSubmit} style={btnStyle}>ADD</button>
           <button onClick={onClose} style={{ ...btnStyle, background: "var(--s2)", color: "var(--s4)" }}>CANCEL</button>
