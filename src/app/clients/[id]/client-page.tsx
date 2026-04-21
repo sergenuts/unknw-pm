@@ -782,7 +782,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                         fixedItemId={item.id}
                         clientId={cl.id}
                         currency={cl.currency}
-                        members={members}
+                        members={projectMembers}
                         onClose={() => setShowAddCost(null)}
                       />
                     ) : (
