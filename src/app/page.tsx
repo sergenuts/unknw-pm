@@ -1,29 +1,27 @@
 import { supabase } from "@/lib/supabase";
 import { getCurrentMonth } from "@/lib/format";
 import { DashboardClient } from "./dashboard-client";
-import type { Client, Entry, ClientMonth, ClientRate, FixedItem } from "@/lib/types";
+import type { Client, Entry, ClientMonth, ClientRate } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 async function getData() {
-  const [clientsRes, entriesRes, monthsRes, ratesRes, fixedRes] = await Promise.all([
+  const [clientsRes, entriesRes, monthsRes, ratesRes] = await Promise.all([
     supabase.from("clients").select("*"),
     supabase.from("entries").select("*"),
     supabase.from("client_months").select("*"),
     supabase.from("client_rates").select("*"),
-    supabase.from("fixed_items").select("*"),
   ]);
   return {
     clients: (clientsRes.data || []) as Client[],
     entries: (entriesRes.data || []) as Entry[],
     months: (monthsRes.data || []) as ClientMonth[],
     rates: (ratesRes.data || []) as ClientRate[],
-    fixed: (fixedRes.data || []) as FixedItem[],
   };
 }
 
 export default async function DashboardPage() {
-  const { clients, entries, months, rates, fixed } = await getData();
+  const { clients, entries, months, rates } = await getData();
   const cur = getCurrentMonth();
 
   const monthOrder = [
@@ -70,7 +68,6 @@ export default async function DashboardPage() {
         entries={entries}
         months={months}
         rates={rates}
-        fixed={fixed}
         allMonths={allMonths}
         defaultMonth={cur}
       />
