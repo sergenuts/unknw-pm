@@ -16,6 +16,7 @@ import {
   deleteFixedCost,
   deleteFixedItem,
   createClientRate,
+  updateFixedItemStatus,
   deleteClientRate,
   assignTeamMember,
   unassignTeamMember,
@@ -629,7 +630,15 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                         </span>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <Badge type={item.status}>{item.status}</Badge>
+                        <select
+                          value={item.status}
+                          onChange={(e) => updateFixedItemStatus(item.id, e.target.value, cl.id)}
+                          style={{ ...selectStyle, width: 120, padding: "3px 6px", fontSize: 11, textTransform: "uppercase" }}
+                        >
+                          <option value="in progress">in progress</option>
+                          <option value="done">done</option>
+                          <option value="paused">paused</option>
+                        </select>
                         <button
                           onClick={() => {
                             if (confirm("Delete " + item.name + "?")) deleteFixedItem(item.id, cl.id);

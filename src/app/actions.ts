@@ -204,6 +204,11 @@ export async function updateFixedItemPaid(itemId: string, paid: number, clientId
   revalidatePath("/clients/" + clientId);
 }
 
+export async function updateFixedItemStatus(itemId: string, status: string, clientId: string) {
+  await supabase.from("fixed_items").update({ status }).eq("id", itemId);
+  revalidatePath("/clients/" + clientId);
+}
+
 // ─── Fixed Costs ─────────────────────────────────────────────
 
 export async function createFixedCost(data: {
