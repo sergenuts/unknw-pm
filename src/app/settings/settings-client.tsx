@@ -181,7 +181,9 @@ export function SettingsClient({
   rates: ClientRate[];
 }) {
   const members = [...membersRaw].sort((a, b) => a.name.localeCompare(b.name));
-  const leadNames = members.filter((m) => m.type === "lead").map((m) => m.name);
+  const leadNames = members
+    .filter((m) => m.type === "lead" || m.role === "lead")
+    .map((m) => m.name);
   const [tab, setTab] = useState<"team" | "clients" | "rates">("team");
   const [showAddMember, setShowAddMember] = useState(false);
   const [showAddClient, setShowAddClient] = useState(false);
@@ -291,10 +293,10 @@ export function SettingsClient({
                   </td>
                   <td style={{ ...tdStyle, width: 30 }}>
                     <button
-                      onClick={() => {
-                        if (confirm(`Delete ${m.name}? This will fail if they have linked records.`)) {
-                          deleteTeamMember(m.id);
-                        }
+                      onClick={async () => {
+                        if (!confirm(`Delete ${m.name}?`)) return;
+                        const res = await deleteTeamMember(m.id);
+                        if (res?.error) alert(res.error);
                       }}
                       style={{ background: "none", border: "none", color: "var(--s3)", cursor: "pointer", fontSize: 14 }}
                     >

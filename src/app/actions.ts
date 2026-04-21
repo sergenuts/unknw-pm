@@ -325,9 +325,24 @@ export async function createTeamMember(data: {
   revalidatePath("/settings");
 }
 
-export async function deleteTeamMember(id: string) {
-  await supabase.from("team_members").delete().eq("id", id);
+export async function deleteTeamMember(id: string): Promise<{ error?: string }> {
+  const [eRes, fcRes, omRes] = await Promise.all([
+    supabase.from("entries").select("id", { count: "exact", head: true }).eq("owner_id", id),
+    supabase.from("fixed_costs").select("id", { count: "exact", head: true }).eq("member_id", id),
+    supabase.from("outsource_months").select("id", { count: "exact", head: true }).eq("member_id", id),
+  ]);
+  const parts: string[] = [];
+  if (eRes.count) parts.push(`${eRes.count} entries`);
+  if (fcRes.count) parts.push(`${fcRes.count} fixed costs`);
+  if (omRes.count) parts.push(`${omRes.count} outsource months`);
+  if (parts.length > 0) {
+    return { error: `Cannot delete — has ${parts.join(", ")}` };
+  }
+  await supabase.from("team_assignments").delete().eq("member_id", id);
+  const { error } = await supabase.from("team_members").delete().eq("id", id);
+  if (error) return { error: error.message };
   revalidatePath("/settings");
+  return {};
 }
 
 export async function updateTeamMemberRate(id: string, costRate: number) {
