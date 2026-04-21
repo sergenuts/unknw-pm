@@ -14,6 +14,7 @@ import {
   updateFixedItemPaid,
   createFixedCost,
   deleteFixedCost,
+  deleteFixedItem,
   createClientRate,
   deleteClientRate,
   assignTeamMember,
@@ -224,7 +225,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
   if (allMonths.length === 0) allMonths.push(cur);
 
   const [selectedMonth, setSelectedMonth] = useState(allMonths.includes(cur) ? cur : allMonths[allMonths.length - 1]);
-  const [contentTab, setContentTab] = useState<"report" | "tasks" | "fixed" | "outsource" | "team">("report");
+  const [contentTab, setContentTab] = useState<"report" | "history" | "outsource" | "team">("report");
   const [showAddEntry, setShowAddEntry] = useState(false);
   const [showAddFixed, setShowAddFixed] = useState(false);
   const [showAddRate, setShowAddRate] = useState(false);
@@ -237,18 +238,29 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
 
   // Month data
   const mEntriesRaw = entries.filter((e) => e.month === selectedMonth);
-  // apply client-side drag reorder
+  // sort newest-first by day, drag reorder can override
+  const mEntriesSorted = [...mEntriesRaw].sort((a, b) => (Number(b.date) || 0) - (Number(a.date) || 0));
   const mEntries = entryOrder.length > 0
     ? entryOrder
-        .map((id) => mEntriesRaw.find((e) => e.id === id))
+        .map((id) => mEntriesSorted.find((e) => e.id === id))
         .filter(Boolean)
-        .concat(mEntriesRaw.filter((e) => !entryOrder.includes(e.id))) as Entry[]
-    : mEntriesRaw;
+        .concat(mEntriesSorted.filter((e) => !entryOrder.includes(e.id))) as Entry[]
+    : mEntriesSorted;
   const mDone = mEntries.filter((e) => e.status === "done");
   const mHours = mDone.reduce((s, e) => s + e.hours * (e.coeff || 1), 0);
   const mBilled = mDone.reduce((s, e) => s + e.hours * (e.coeff || 1) * getRate(e.role), 0);
   const mData = months.find((m) => m.month === selectedMonth);
-  const mEst = mData?.estimate || 0;
+  // Auto estimate: all non-rejected tasks (by rate) + fixed items
+  const mEstAuto =
+    mEntries
+      .filter((e) => e.status !== "rejected")
+      .reduce((s, e) => s + e.hours * (e.coeff || 1) * getRate(e.role), 0) +
+    fixed
+      .filter((f) => f.month === selectedMonth)
+      .reduce((s, f) => s + (f.total || 0), 0);
+  const mEstManual = mData?.estimate || 0;
+  const mEst = mEstManual > 0 ? mEstManual : mEstAuto;
+  const mEstIsAuto = mEstManual === 0;
   const mPaid = mData?.paid || 0;
   const mOwes = mBilled - mPaid;
 
@@ -275,13 +287,28 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
     const owes = rawOwes;
     // if overpaid this month, carry surplus to next
     carryOver = owes < 0 ? Math.abs(owes) : 0;
-    return { month: m, hours: h, billed: b, estimate: md?.estimate || 0, paid, owes };
+    const autoEst =
+      entries
+        .filter((e) => e.month === m && e.status !== "rejected")
+        .reduce((s, e) => s + e.hours * (e.coeff || 1) * getRate(e.role), 0) +
+      fixed
+        .filter((f) => f.month === m)
+        .reduce((s, f) => s + (f.total || 0), 0);
+    const manualEst = md?.estimate || 0;
+    return {
+      month: m,
+      hours: h,
+      billed: b,
+      estimate: manualEst > 0 ? manualEst : autoEst,
+      estimateIsAuto: manualEst === 0,
+      paid,
+      owes,
+    };
   });
 
   const contentTabs = [
     { key: "report" as const, label: "Report" },
-    { key: "tasks" as const, label: "Tasks" },
-    { key: "fixed" as const, label: "Fixed Price" },
+    { key: "history" as const, label: "History" },
     { key: "outsource" as const, label: "Outsource" },
     { key: "team" as const, label: "Team" },
   ];
@@ -372,6 +399,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
               hours={mHours}
               billed={mBilled}
               estimate={mEst}
+              estimateIsAuto={mEstIsAuto}
               paid={mPaid}
               owes={mOwes}
               fm={fm}
@@ -409,64 +437,29 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
               </table>
             </div>
 
-            {/* All months */}
-            <div style={{ marginTop: 40 }}>
-              <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", color: "var(--s3)", textTransform: "uppercase", marginBottom: 12 }}>
-                All Months
+            {/* Tasks header + add button */}
+            <div style={{ marginTop: 40, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", color: "var(--s3)", textTransform: "uppercase" }}>
+                Tasks
               </div>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={thStyle}>Month</th>
-                    <th style={{ ...thStyle, textAlign: "right" }}>Hours</th>
-                    <th style={{ ...thStyle, textAlign: "right" }}>Billed</th>
-                    <th style={{ ...thStyle, textAlign: "right" }}>Est</th>
-                    <th style={{ ...thStyle, textAlign: "right" }}>Paid</th>
-                    <th style={{ ...thStyle, textAlign: "right" }}>Owes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allMonthsSummary.map((r) => (
-                    <tr key={r.month}>
-                      <td style={tdStyle}>{r.month}</td>
-                      <td style={{ ...tdStyle, textAlign: "right" }}>{r.hours}</td>
-                      <td style={{ ...tdStyle, textAlign: "right" }}>{fm(r.billed)}</td>
-                      <td style={{ ...tdStyle, textAlign: "right", color: "var(--s4)" }}>{fm(r.estimate)}</td>
-                      <td style={{ ...tdStyle, textAlign: "right" }}>
-                        <EditableValue
-                          value={r.paid}
-                          size={13}
-                          format={(v) => fm(v)}
-                          onSave={(v) => upsertClientMonth(cl.id, r.month, "paid", v)}
-                        />
-                      </td>
-                      <td style={{ ...tdStyle, textAlign: "right", color: r.owes > 0 ? "var(--red)" : "var(--green)" }}>
-                        {r.owes > 0 ? fm(r.owes) : r.owes < 0 ? "+" + fm(Math.abs(r.owes)) : "settled"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {!showAddEntry && (
+                <button onClick={() => setShowAddEntry(true)} style={{ ...btnStyle, fontSize: 10, padding: "4px 10px" }}>
+                  + ADD TASK
+                </button>
+              )}
             </div>
-          </div>
-        )}
-
-        {/* ═══ TASKS TAB ═══ */}
-        {contentTab === "tasks" && (
-          <div>
-            <SummaryStats
-              hours={mHours}
-              billed={mBilled}
-              estimate={mEst}
-              paid={mPaid}
-              owes={mOwes}
-              fm={fm}
-              clientId={cl.id}
-              month={selectedMonth}
-            />
+            {showAddEntry && (
+              <AddEntryForm
+                clientId={cl.id}
+                month={selectedMonth}
+                members={members}
+                rates={rates}
+                onClose={() => setShowAddEntry(false)}
+              />
+            )}
 
             {/* Tasks table */}
-            <div style={{ marginTop: 24 }}>
+            <div style={{ marginTop: showAddEntry ? 16 : 0 }}>
               <table style={tableStyle}>
                 <thead>
                   <tr>
@@ -597,36 +590,23 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
               </table>
             </div>
 
-            {/* Add entry */}
-            {showAddEntry ? (
-              <AddEntryForm
-                clientId={cl.id}
-                month={selectedMonth}
-                members={members}
-                rates={rates}
-                onClose={() => setShowAddEntry(false)}
-              />
-            ) : (
-              <button onClick={() => setShowAddEntry(true)} style={{ ...btnStyle, marginTop: 16 }}>
-                + ADD
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* ═══ FIXED PRICE TAB ═══ */}
-        {contentTab === "fixed" && (
-          <div>
-            {showAddFixed ? (
+            {/* Fixed price header + add button */}
+            <div style={{ marginTop: 40, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", color: "var(--s3)", textTransform: "uppercase" }}>
+                Fixed Price
+              </div>
+              {!showAddFixed && (
+                <button onClick={() => setShowAddFixed(true)} style={{ ...btnStyle, fontSize: 10, padding: "4px 10px" }}>
+                  + NEW
+                </button>
+              )}
+            </div>
+            {showAddFixed && (
               <AddFixedForm
                 clientId={cl.id}
                 month={selectedMonth}
                 onClose={() => setShowAddFixed(false)}
               />
-            ) : (
-              <button onClick={() => setShowAddFixed(true)} style={{ ...btnStyle, marginBottom: 20 }}>
-                + NEW
-              </button>
             )}
 
             {fixed
@@ -648,7 +628,17 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                           {item.qty} × {fm(item.price)} = {fm(item.total)}
                         </span>
                       </div>
-                      <Badge type={item.status}>{item.status}</Badge>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <Badge type={item.status}>{item.status}</Badge>
+                        <button
+                          onClick={() => {
+                            if (confirm("Delete " + item.name + "?")) deleteFixedItem(item.id, cl.id);
+                          }}
+                          style={{ background: "none", border: "none", color: "var(--s3)", cursor: "pointer", fontSize: 16 }}
+                        >
+                          ×
+                        </button>
+                      </div>
                     </div>
 
                     {/* Stats */}
@@ -743,6 +733,45 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                   </div>
                 );
               })}
+          </div>
+        )}
+
+        {/* ═══ HISTORY TAB ═══ */}
+        {contentTab === "history" && (
+          <div>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Month</th>
+                  <th style={{ ...thStyle, textAlign: "right" }}>Hours</th>
+                  <th style={{ ...thStyle, textAlign: "right" }}>Billed</th>
+                  <th style={{ ...thStyle, textAlign: "right" }}>Est</th>
+                  <th style={{ ...thStyle, textAlign: "right" }}>Paid</th>
+                  <th style={{ ...thStyle, textAlign: "right" }}>Owes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allMonthsSummary.map((r) => (
+                  <tr key={r.month}>
+                    <td style={tdStyle}>{r.month}</td>
+                    <td style={{ ...tdStyle, textAlign: "right" }}>{r.hours}</td>
+                    <td style={{ ...tdStyle, textAlign: "right" }}>{fm(r.billed)}</td>
+                    <td style={{ ...tdStyle, textAlign: "right", color: "var(--s4)" }}>{fm(r.estimate)}</td>
+                    <td style={{ ...tdStyle, textAlign: "right" }}>
+                      <EditableValue
+                        value={r.paid}
+                        size={13}
+                        format={(v) => fm(v)}
+                        onSave={(v) => upsertClientMonth(cl.id, r.month, "paid", v)}
+                      />
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: "right", color: r.owes > 0 ? "var(--red)" : "var(--green)" }}>
+                      {r.owes > 0 ? fm(r.owes) : r.owes < 0 ? "+" + fm(Math.abs(r.owes)) : "settled"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 
@@ -862,7 +891,9 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                         outsourceMap.set(e.owner_id, (outsourceMap.get(e.owner_id) || 0) + e.hours * (e.coeff || 1));
                       }
                     });
-                    return Array.from(outsourceMap.entries()).map(([ownerId, hours]) => {
+                    const rows = Array.from(outsourceMap.entries());
+                    if (rows.length === 0) return null;
+                    return rows.map(([ownerId, hours], idx) => {
                       const m = members.find((mb) => mb.id === ownerId)!;
                       const om = outsourceMonths.find((o) => o.member_id === ownerId && o.month === month);
                       const rate = om?.rate_override ?? m.cost_rate ?? 0;
@@ -871,7 +902,9 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                       const status = om?.status || "pending";
                       return (
                         <tr key={month + ownerId}>
-                          <td style={tdStyle}>{month}</td>
+                          {idx === 0 && (
+                            <td style={{ ...tdStyle, verticalAlign: "top", borderBottom: "1px solid var(--s1)" }} rowSpan={rows.length}>{month}</td>
+                          )}
                           <td style={tdStyle}>{m.name}</td>
                           <td style={{ ...tdStyle, textAlign: "right" }}>{hours}</td>
                           <td style={{ ...tdStyle, textAlign: "right" }}>{fm(toPay)}</td>
@@ -953,53 +986,12 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
               )}
             </div>
 
-            {/* Contractors this month — outsource people from entries */}
-            <div style={{ marginBottom: 32 }}>
-              <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", color: "var(--s3)", textTransform: "uppercase", marginBottom: 12 }}>
-                Contractors this month
-              </div>
-              {(() => {
-                const outsourceIds = new Set(
-                  mEntries.map((e) => e.owner_id).filter((id) => {
-                    const m = members.find((mb) => mb.id === id);
-                    return m && m.type === "outsource";
-                  })
-                );
-                const items = Array.from(outsourceIds).map((id) => members.find((mb) => mb.id === id)).filter(Boolean);
-                if (items.length === 0) return <div style={{ color: "var(--s4)", fontSize: 13 }}>No contractors this month</div>;
-                return items.map((m) => (
-                  <div key={m!.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--s2)" }}>
-                    <Badge type="outsource">outsource</Badge>
-                    <span style={{ fontSize: 13 }}>{m!.name}</span>
-                    <span style={{ fontSize: 12, color: "var(--s4)" }}>{m!.role}</span>
-                  </div>
-                ));
-              })()}
-            </div>
-
-            {/* Internal this month — internal people from entries */}
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", color: "var(--s3)", textTransform: "uppercase", marginBottom: 12 }}>
-                Internal this month
-              </div>
-              {(() => {
-                const internalIds = new Set(
-                  mEntries.map((e) => e.owner_id).filter((id) => {
-                    const m = members.find((mb) => mb.id === id);
-                    return m && m.type === "internal";
-                  })
-                );
-                const items = Array.from(internalIds).map((id) => members.find((mb) => mb.id === id)).filter(Boolean);
-                if (items.length === 0) return <div style={{ color: "var(--s4)", fontSize: 13 }}>No internal members this month</div>;
-                return items.map((m) => (
-                  <div key={m!.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--s2)" }}>
-                    <Badge type="internal">internal</Badge>
-                    <span style={{ fontSize: 13 }}>{m!.name}</span>
-                    <span style={{ fontSize: 12, color: "var(--s4)" }}>{m!.role}</span>
-                  </div>
-                ));
-              })()}
-            </div>
+            {/* Assigned members — can log hours in this project */}
+            <AssignedMembers
+              clientId={cl.id}
+              members={members}
+              assignments={assignments}
+            />
           </div>
         )}
       </div>
@@ -1010,33 +1002,34 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
 // ─── Summary Stats ───────────────────────────────────────────
 
 function SummaryStats({
-  hours, billed, estimate, paid, owes, fm, clientId, month,
+  hours, billed, estimate, estimateIsAuto, paid, owes, fm, clientId, month,
 }: {
-  hours: number; billed: number; estimate: number; paid: number; owes: number;
+  hours: number; billed: number; estimate: number; estimateIsAuto?: boolean;
+  paid: number; owes: number;
   fm: (v: number) => string; clientId: string; month: string;
 }) {
-  const labelStyle: React.CSSProperties = { fontSize: 9, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 3 };
+  const labelStyle: React.CSSProperties = { fontSize: 9, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 };
+  const valStyle: React.CSSProperties = { fontSize: 15, fontWeight: 700, lineHeight: 1, color: "var(--s4)" };
   return (
-    <div style={{ ...panelStyle, display: "flex", alignItems: "flex-end", gap: 32, padding: "14px 20px" }}>
+    <div style={{ ...panelStyle, display: "flex", alignItems: "flex-end", gap: 28, padding: "14px 20px" }}>
       <div>
-        <div style={{ fontSize: 20, fontWeight: 800, lineHeight: 1 }}>{hours.toFixed(1)}</div>
+        <div style={valStyle}>{hours.toFixed(1)}</div>
         <div style={labelStyle}>hours</div>
       </div>
       <div>
-        <div style={{ fontSize: 20, fontWeight: 800, color: "var(--green)", lineHeight: 1 }}>{fm(billed)}</div>
+        <div style={valStyle}>{fm(billed)}</div>
         <div style={labelStyle}>billed</div>
       </div>
-      <div style={{ width: 1, height: 28, background: "var(--s2)" }} />
       <div>
-        <EditableValue value={estimate} size={14} color="var(--s4)" format={(v) => fm(v)} onSave={(v) => upsertClientMonth(clientId, month, "estimate", v)} />
-        <div style={labelStyle}>estimate</div>
+        <EditableValue value={estimate} size={15} color="var(--s4)" format={(v) => fm(v)} onSave={(v) => upsertClientMonth(clientId, month, "estimate", v)} />
+        <div style={labelStyle}>estimate{estimateIsAuto ? " · auto" : ""}</div>
       </div>
       <div>
-        <EditableValue value={paid} size={14} format={(v) => fm(v)} onSave={(v) => upsertClientMonth(clientId, month, "paid", v)} />
+        <EditableValue value={paid} size={15} color="var(--s4)" format={(v) => fm(v)} onSave={(v) => upsertClientMonth(clientId, month, "paid", v)} />
         <div style={labelStyle}>paid</div>
       </div>
       <div>
-        <div style={{ fontSize: 14, fontWeight: 800, color: owes > 0 ? "var(--red)" : "var(--green)", lineHeight: 1 }}>
+        <div style={{ ...valStyle, color: owes > 0 ? "var(--red)" : "var(--green)" }}>
           {owes <= 0 ? "settled" : fm(owes)}
         </div>
         <div style={labelStyle}>owes</div>
@@ -1265,6 +1258,89 @@ function AddRateForm({ clientId, onClose }: { clientId: string; onClose: () => v
       </div>
       <button onClick={handleSubmit} style={btnStyle}>ADD</button>
       <button onClick={onClose} style={{ ...btnStyle, background: "var(--s2)", color: "var(--s4)" }}>CANCEL</button>
+    </div>
+  );
+}
+
+// ─── Assigned Members ────────────────────────────────────────
+
+function AssignedMembers({
+  clientId,
+  members,
+  assignments,
+}: {
+  clientId: string;
+  members: TeamMember[];
+  assignments: { id: string; member_id: string; client_id: string }[];
+}) {
+  const assignedIds = new Set(assignments.map((a) => a.member_id));
+  const assignedMembers = members.filter((m) => assignedIds.has(m.id));
+  const unassigned = members.filter((m) => !assignedIds.has(m.id));
+  const [pick, setPick] = useState("");
+
+  return (
+    <div>
+      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", color: "var(--s3)", textTransform: "uppercase", marginBottom: 12 }}>
+        Assigned to project
+      </div>
+      <div style={{ fontSize: 12, color: "var(--s4)", marginBottom: 12 }}>
+        Assigned members will be able to log hours to this project.
+      </div>
+      {assignedMembers.length === 0 ? (
+        <div style={{ color: "var(--s4)", fontSize: 13, marginBottom: 12 }}>No one assigned yet</div>
+      ) : (
+        <div style={{ marginBottom: 12 }}>
+          {assignedMembers.map((m) => (
+            <div
+              key={m.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 0",
+                borderBottom: "1px solid var(--s2)",
+              }}
+            >
+              <Badge type={m.type}>{m.type}</Badge>
+              <span style={{ fontSize: 13 }}>{m.name}</span>
+              <span style={{ fontSize: 12, color: "var(--s4)" }}>{m.role}</span>
+              <button
+                onClick={() => unassignTeamMember(m.id, clientId)}
+                style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--s3)", cursor: "pointer", fontSize: 14 }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {unassigned.length > 0 && (
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginTop: 8 }}>
+          <select
+            value={pick}
+            onChange={(e) => setPick(e.target.value)}
+            style={{ ...selectStyle, width: 220 }}
+          >
+            <option value="">Select member…</option>
+            {unassigned.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name} ({m.type} · {m.role})
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => {
+              if (!pick) return;
+              assignTeamMember(pick, clientId);
+              setPick("");
+            }}
+            style={btnStyle}
+          >
+            + ASSIGN
+          </button>
+        </div>
+      )}
     </div>
   );
 }

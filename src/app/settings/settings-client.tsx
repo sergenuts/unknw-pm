@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Badge } from "@/app/_components/badge";
 import { formatMoney } from "@/lib/format";
-import { createTeamMember, deleteTeamMember, createClient, toggleClientVat, updateTeamMemberRate } from "@/app/actions";
+import { createTeamMember, deleteTeamMember, createClient, toggleClientVat, updateTeamMemberRate, updateClientField, updateTeamMemberPassword } from "@/app/actions";
 import type { TeamMember, Client, ClientRate } from "@/lib/types";
 
 const thStyle: React.CSSProperties = {
@@ -78,6 +79,57 @@ function EditableRate({ value, onSave }: { value: number; onSave: (v: number) =>
       style={{ cursor: "pointer", borderBottom: "1px dashed var(--s3)", fontSize: 13, color: "var(--yellow)" }}
     >
       ${value}/h
+    </span>
+  );
+}
+
+function EditablePassword({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(value);
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        type="text"
+        style={{ ...inputStyle, width: 140, fontSize: 13 }}
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={() => { onSave(val); setEditing(false); }}
+        onKeyDown={(e) => { if (e.key === "Enter") { onSave(val); setEditing(false); } }}
+      />
+    );
+  }
+  return (
+    <span
+      onClick={() => { setVal(value); setEditing(true); }}
+      style={{ cursor: "pointer", borderBottom: "1px dashed var(--s3)", fontSize: 13, color: value ? "var(--fg)" : "var(--s4)", fontFamily: "monospace" }}
+    >
+      {value ? "•".repeat(Math.min(value.length, 10)) : "set password"}
+    </span>
+  );
+}
+
+function EditableLead({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(value);
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        style={{ ...inputStyle, width: 140, fontSize: 13 }}
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={() => { onSave(val); setEditing(false); }}
+        onKeyDown={(e) => { if (e.key === "Enter") { onSave(val); setEditing(false); } }}
+      />
+    );
+  }
+  return (
+    <span
+      onClick={() => { setVal(value); setEditing(true); }}
+      style={{ cursor: "pointer", borderBottom: "1px dashed var(--s3)", fontSize: 13, color: value ? "var(--fg)" : "var(--s4)" }}
+    >
+      {value || "—"}
     </span>
   );
 }
@@ -163,13 +215,18 @@ export function SettingsClient({
                 <th style={thStyle}>Role</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Rate</th>
                 <th style={thStyle}>Email</th>
+                <th style={thStyle}>Password</th>
                 <th style={thStyle}></th>
               </tr>
             </thead>
             <tbody>
               {members.map((m) => (
                 <tr key={m.id}>
-                  <td style={tdStyle}>{m.name}</td>
+                  <td style={tdStyle}>
+                    <Link href={`/team/${m.id}`} style={{ color: "var(--fg)", textDecoration: "underline", textDecorationStyle: "dashed", textUnderlineOffset: 3 }}>
+                      {m.name}
+                    </Link>
+                  </td>
                   <td style={tdStyle}>
                     <Badge type={m.type}>{m.type}</Badge>
                   </td>
@@ -182,6 +239,9 @@ export function SettingsClient({
                     )}
                   </td>
                   <td style={{ ...tdStyle, color: "var(--s4)" }}>{m.email || "—"}</td>
+                  <td style={tdStyle}>
+                    <EditablePassword value={m.password || ""} onSave={(v) => updateTeamMemberPassword(m.id, v)} />
+                  </td>
                   <td style={{ ...tdStyle, width: 30 }}>
                     <button
                       onClick={() => deleteTeamMember(m.id)}
@@ -221,7 +281,17 @@ export function SettingsClient({
               {clients.map((cl) => (
                 <tr key={cl.id}>
                   <td style={{ ...tdStyle, fontWeight: 600 }}>{cl.name}</td>
-                  <td style={tdStyle}>{cl.currency}</td>
+                  <td style={tdStyle}>
+                    <select
+                      value={cl.currency}
+                      onChange={(e) => updateClientField(cl.id, "currency", e.target.value)}
+                      style={{ ...selectStyle, width: 90, padding: "3px 6px" }}
+                    >
+                      <option value="GBP">GBP</option>
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                    </select>
+                  </td>
                   <td style={tdStyle}>
                     <span
                       onClick={() => toggleClientVat(cl.id, !cl.vat)}
@@ -232,7 +302,9 @@ export function SettingsClient({
                       </Badge>
                     </span>
                   </td>
-                  <td style={{ ...tdStyle, color: "var(--s4)" }}>{cl.deal_lead || "—"}</td>
+                  <td style={tdStyle}>
+                    <EditableLead value={cl.deal_lead || ""} onSave={(v) => updateClientField(cl.id, "deal_lead", v)} />
+                  </td>
                 </tr>
               ))}
             </tbody>

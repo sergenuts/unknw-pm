@@ -6,6 +6,8 @@ export interface TeamMember {
   email: string | null;
   cost_rate: number;
   created_by: string | null;
+  password: string | null;
+  is_admin: boolean;
 }
 
 export interface Client {
@@ -33,6 +35,8 @@ export interface ClientMonth {
   paid: number;
 }
 
+export type EntryType = "hours_task" | "hours_week" | "fixed_task";
+
 export interface Entry {
   id: string;
   client_id: string;
@@ -44,6 +48,9 @@ export interface Entry {
   hours: number;
   coeff: number;
   status: string;
+  entry_type: EntryType;
+  amount: number;
+  week_num: number | null;
 }
 
 export interface FixedItem {

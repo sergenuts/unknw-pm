@@ -2,6 +2,70 @@
 
 import { supabase } from "@/lib/supabase";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+
+// ─── Auth ────────────────────────────────────────────────────
+
+export async function loginAdmin(email: string, password: string): Promise<{ error?: string }> {
+  const { data } = await supabase
+    .from("team_members")
+    .select("id, password, is_admin")
+    .eq("email", email.trim().toLowerCase())
+    .single();
+  if (!data || !data.password || data.password !== password) {
+    return { error: "Invalid credentials" };
+  }
+  const jar = await cookies();
+  if (data.is_admin) {
+    jar.set("admin_auth", "1", {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+    redirect("/");
+  } else {
+    jar.set("member_auth", data.id, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+    redirect(`/team/${data.id}`);
+  }
+}
+
+export async function loginMember(memberId: string, password: string): Promise<{ error?: string }> {
+  const { data } = await supabase
+    .from("team_members")
+    .select("id, password")
+    .eq("id", memberId)
+    .single();
+  if (!data || !data.password || data.password !== password) {
+    return { error: "Invalid credentials" };
+  }
+  const jar = await cookies();
+  jar.set("member_auth", memberId, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30,
+  });
+  redirect(`/team/${memberId}`);
+}
+
+export async function logout() {
+  const jar = await cookies();
+  jar.delete("admin_auth");
+  jar.delete("member_auth");
+  redirect("/login");
+}
+
+export async function updateTeamMemberPassword(id: string, password: string) {
+  await supabase.from("team_members").update({ password: password || null }).eq("id", id);
+  revalidatePath("/settings");
+}
 
 // ─── Client Months (estimate / paid) ─────────────────────────
 
@@ -68,6 +132,55 @@ export async function createEntry(data: {
   revalidatePath("/clients/" + data.client_id);
 }
 
+export async function createMemberEntry(data: {
+  client_id: string;
+  month: string;
+  owner_id: string;
+  role: string;
+  entry_type: "hours_task" | "hours_week" | "fixed_task";
+  task: string;
+  date?: string;
+  hours?: number;
+  amount?: number;
+  week_num?: number;
+}) {
+  await supabase.from("entries").insert({
+    client_id: data.client_id,
+    month: data.month,
+    owner_id: data.owner_id,
+    role: data.role,
+    entry_type: data.entry_type,
+    task: data.task,
+    date: data.date ?? null,
+    hours: data.hours ?? 0,
+    amount: data.amount ?? 0,
+    week_num: data.week_num ?? null,
+    coeff: 1,
+    status: "pending",
+  });
+  revalidatePath("/clients/" + data.client_id);
+  revalidatePath("/team/" + data.owner_id);
+  revalidatePath("/team/" + data.owner_id + "/" + data.client_id);
+  revalidatePath("/approvals");
+}
+
+export async function approveFixedCost(costId: string) {
+  await supabase.from("fixed_costs").update({ status: "planned" }).eq("id", costId);
+  revalidatePath("/approvals");
+}
+
+export async function rejectFixedCost(costId: string) {
+  await supabase.from("fixed_costs").delete().eq("id", costId);
+  revalidatePath("/approvals");
+}
+
+export async function deleteMemberEntry(entryId: string, memberId: string, clientId: string) {
+  await supabase.from("entries").delete().eq("id", entryId);
+  revalidatePath("/clients/" + clientId);
+  revalidatePath("/team/" + memberId);
+  revalidatePath("/team/" + memberId + "/" + clientId);
+}
+
 // ─── Fixed Items ─────────────────────────────────────────────
 
 export async function createFixedItem(data: {
@@ -107,10 +220,31 @@ export async function createFixedCost(data: {
   const { clientId, ...rest } = data;
   await supabase.from("fixed_costs").insert(rest);
   revalidatePath("/clients/" + clientId);
+  revalidatePath("/approvals");
+  if (data.member_id) {
+    revalidatePath("/team/" + data.member_id);
+    revalidatePath("/team/" + data.member_id + "/" + clientId);
+  }
 }
 
 export async function deleteFixedCost(costId: string, clientId: string) {
+  const { data: cost } = await supabase
+    .from("fixed_costs")
+    .select("member_id")
+    .eq("id", costId)
+    .single();
   await supabase.from("fixed_costs").delete().eq("id", costId);
+  revalidatePath("/clients/" + clientId);
+  revalidatePath("/approvals");
+  if (cost?.member_id) {
+    revalidatePath("/team/" + cost.member_id);
+    revalidatePath("/team/" + cost.member_id + "/" + clientId);
+  }
+}
+
+export async function deleteFixedItem(itemId: string, clientId: string) {
+  await supabase.from("fixed_costs").delete().eq("fixed_item_id", itemId);
+  await supabase.from("fixed_items").delete().eq("id", itemId);
   revalidatePath("/clients/" + clientId);
 }
 
@@ -157,7 +291,7 @@ export async function rejectEntry(entryId: string) {
 }
 
 export async function approveAllEntries() {
-  await supabase.from("entries").update({ status: "done" }).eq("status", "submitted");
+  await supabase.from("entries").update({ status: "done" }).in("status", ["submitted", "pending"]);
   revalidatePath("/approvals");
 }
 
@@ -235,4 +369,11 @@ export async function toggleClientVat(clientId: string, vat: boolean) {
   await supabase.from("clients").update({ vat }).eq("id", clientId);
   revalidatePath("/settings");
   revalidatePath("/clients/" + clientId);
+}
+
+export async function updateClientField(clientId: string, field: "currency" | "deal_lead", value: string) {
+  await supabase.from("clients").update({ [field]: value }).eq("id", clientId);
+  revalidatePath("/settings");
+  revalidatePath("/clients/" + clientId);
+  revalidatePath("/");
 }

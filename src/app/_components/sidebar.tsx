@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { logout } from "@/app/actions";
 
 const NAV = [
   { href: "/", label: "CLIENTS", num: "001" },
@@ -11,6 +12,10 @@ const NAV = [
 
 export function Sidebar() {
   const pathname = usePathname();
+
+  if (pathname === "/login" || /^\/team\/[^/]+\/login$/.test(pathname || "")) {
+    return null;
+  }
 
   function isActive(href: string) {
     if (href === "/") return pathname === "/" || pathname.startsWith("/clients");
@@ -104,8 +109,27 @@ export function Sidebar() {
           color: "var(--s3)",
         }}
       >
-        AS{" "}
-        <span style={{ color: "var(--accent)", fontWeight: 600 }}>SERGE</span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>
+            AS{" "}
+            <span style={{ color: "var(--accent)", fontWeight: 600 }}>SERGE</span>
+          </span>
+          <button
+            onClick={() => logout()}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--s4)",
+              fontSize: 10,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              cursor: "pointer",
+              padding: 0,
+            }}
+          >
+            Logout
+          </button>
+        </div>
       </div>
     </div>
   );
