@@ -244,6 +244,38 @@ export async function createFixedCost(data: {
   }
 }
 
+export async function updateFixedCostField(
+  costId: string,
+  field: "description" | "amount",
+  value: string | number,
+  clientId: string
+) {
+  const { data: cost } = await supabase
+    .from("fixed_costs")
+    .select("member_id")
+    .eq("id", costId)
+    .single();
+  await supabase.from("fixed_costs").update({ [field]: value }).eq("id", costId);
+  revalidatePath("/clients/" + clientId);
+  if (cost?.member_id) {
+    revalidatePath("/team/" + cost.member_id);
+    revalidatePath("/team/" + cost.member_id + "/" + clientId);
+  }
+}
+
+export async function updateMemberEntryField(
+  entryId: string,
+  field: "task" | "hours" | "date",
+  value: string | number,
+  memberId: string,
+  clientId: string
+) {
+  await supabase.from("entries").update({ [field]: value }).eq("id", entryId);
+  revalidatePath("/clients/" + clientId);
+  revalidatePath("/team/" + memberId);
+  revalidatePath("/team/" + memberId + "/" + clientId);
+}
+
 export async function updateFixedCostStatus(costId: string, status: string, clientId: string) {
   const { data: cost } = await supabase
     .from("fixed_costs")

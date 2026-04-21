@@ -1,11 +1,91 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import type { Client, Entry, TeamMember, ClientRate, FixedItem, FixedCost } from "@/lib/types";
 import { formatMoney } from "@/lib/format";
-import { weeksInMonth } from "@/lib/weeks";
-import { createMemberEntry, deleteMemberEntry, createFixedCost, deleteFixedCost } from "@/app/actions";
+import { weeksInMonth, weekDateLabel } from "@/lib/weeks";
+import { createMemberEntry, deleteMemberEntry, createFixedCost, deleteFixedCost, updateMemberEntryField, updateFixedCostField } from "@/app/actions";
+
+function DeleteBtn({
+  onConfirm,
+  confirmMsg,
+}: {
+  onConfirm: () => Promise<void> | void;
+  confirmMsg?: string;
+}) {
+  const [pending, startTransition] = useTransition();
+  return (
+    <button
+      disabled={pending}
+      onClick={() => {
+        if (confirmMsg && !confirm(confirmMsg)) return;
+        startTransition(async () => {
+          await onConfirm();
+        });
+      }}
+      style={{
+        background: "none",
+        border: "none",
+        color: pending ? "var(--accent)" : "var(--s3)",
+        cursor: pending ? "wait" : "pointer",
+        fontSize: 14,
+        opacity: pending ? 0.7 : 1,
+      }}
+      title={pending ? "Deleting…" : "Delete"}
+    >
+      {pending ? "…" : "×"}
+    </button>
+  );
+}
+
+function InlineEdit({
+  value,
+  onSave,
+  width,
+  align = "left",
+  type = "text",
+}: {
+  value: string | number;
+  onSave: (v: string) => Promise<void> | void;
+  width?: number;
+  align?: "left" | "right";
+  type?: "text" | "number";
+}) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(String(value ?? ""));
+  const [pending, startTransition] = useTransition();
+  if (!editing) {
+    return (
+      <span
+        onClick={() => { setVal(String(value ?? "")); setEditing(true); }}
+        style={{ cursor: "text", borderBottom: "1px dashed var(--s2)", paddingBottom: 1 }}
+      >
+        {value || "—"}
+      </span>
+    );
+  }
+  const commit = () => {
+    setEditing(false);
+    if (String(value ?? "") === val) return;
+    startTransition(async () => { await onSave(val); });
+  };
+  return (
+    <input
+      autoFocus
+      type={type}
+      value={val}
+      disabled={pending}
+      onChange={(e) => setVal(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
+      style={{
+        background: "var(--s1)", border: "1px solid var(--s2)", color: "var(--fg)",
+        padding: "2px 6px", fontSize: 13, width: width ?? 100, textAlign: align,
+      }}
+    />
+  );
+}
 
 const thStyle: React.CSSProperties = {
   textAlign: "left", padding: "8px 12px", fontSize: 10, fontWeight: 600,
@@ -57,9 +137,9 @@ export function MemberProjectClient({
   const mEntriesAll = entries.filter((e) => e.month === selectedMonth);
   const mEntries = mEntriesAll.filter((e) => e.status !== "rejected" && e.status !== "paused");
   const mFixedItems = fixedItems.filter((f) => f.month === selectedMonth);
-  const mFixedCosts = fixedCosts.filter((c) =>
+  const mFixedCosts = [...fixedCosts.filter((c) =>
     mFixedItems.some((f) => f.id === c.fixed_item_id),
-  );
+  )].reverse();
   const rateFor = (role: string) => rates.find((r) => r.role === role)?.rate || 0;
   const fm = (v: number) => formatMoney(v, client.currency);
 
@@ -197,29 +277,47 @@ export function MemberProjectClient({
               {mEntriesAll.map((e) => {
                 const r = rateFor(e.role);
                 const amt = (e.hours || 0) * r;
-                const when =
-                  e.entry_type === "hours_week"
-                    ? `Week ${e.week_num ?? "?"}`
-                    : e.date || "—";
                 const typeLabel = e.entry_type === "hours_week" ? "hours/week" : "hours/task";
                 return (
                   <tr key={e.id}>
                     <td style={{ ...tdStyle, color: "var(--s4)", fontSize: 11, textTransform: "uppercase" }}>{typeLabel}</td>
-                    <td style={tdStyle}>{when}</td>
                     <td style={tdStyle}>
-                      {e.task}
+                      {e.entry_type === "hours_week" ? (
+                        <span style={{ color: "var(--s4)" }}>{weekDateLabel(selectedMonth, e.week_num)}</span>
+                      ) : (
+                        <InlineEdit
+                          value={e.date || ""}
+                          width={60}
+                          onSave={(v) => updateMemberEntryField(e.id, "date", v, member.id, client.id)}
+                        />
+                      )}
+                    </td>
+                    <td style={tdStyle}>
+                      <InlineEdit
+                        value={e.task}
+                        width={220}
+                        onSave={(v) => updateMemberEntryField(e.id, "task", v, member.id, client.id)}
+                      />
                       <span style={{ color: r === 0 ? "var(--red)" : "var(--s4)", fontSize: 11, marginLeft: 8 }}>
                         · {e.role}{r === 0 ? " (no rate)" : ""}
                       </span>
                     </td>
-                    <td style={{ ...tdStyle, textAlign: "right" }}>{e.hours}</td>
+                    <td style={{ ...tdStyle, textAlign: "right" }}>
+                      <InlineEdit
+                        value={e.hours}
+                        type="number"
+                        width={70}
+                        align="right"
+                        onSave={(v) => updateMemberEntryField(e.id, "hours", Number(v), member.id, client.id)}
+                      />
+                    </td>
                     <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>{fm(amt)}</td>
                     <td style={{ ...tdStyle, color: "var(--s4)" }}>{e.status}</td>
                     <td style={tdStyle}>
-                      <button
-                        onClick={() => deleteMemberEntry(e.id, member.id, client.id)}
-                        style={{ background: "none", border: "none", color: "var(--s3)", cursor: "pointer", fontSize: 14 }}
-                      >×</button>
+                      <DeleteBtn
+                        confirmMsg={`Delete entry "${e.task}"?`}
+                        onConfirm={() => deleteMemberEntry(e.id, member.id, client.id)}
+                      />
                     </td>
                   </tr>
                 );
@@ -230,15 +328,31 @@ export function MemberProjectClient({
                   <tr key={c.id}>
                     <td style={{ ...tdStyle, color: "var(--s4)", fontSize: 11, textTransform: "uppercase" }}>fixed</td>
                     <td style={tdStyle}>—</td>
-                    <td style={tdStyle}>{item?.name || "—"} <span style={{ color: "var(--s4)" }}>· {c.description}</span></td>
+                    <td style={tdStyle}>
+                      {item?.name || "—"}{" "}
+                      <span style={{ color: "var(--s4)" }}>· </span>
+                      <InlineEdit
+                        value={c.description}
+                        width={200}
+                        onSave={(v) => updateFixedCostField(c.id, "description", v, client.id)}
+                      />
+                    </td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>—</td>
-                    <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>{fm(c.amount)}</td>
+                    <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>
+                      <InlineEdit
+                        value={c.amount}
+                        type="number"
+                        width={90}
+                        align="right"
+                        onSave={(v) => updateFixedCostField(c.id, "amount", Number(v), client.id)}
+                      />
+                    </td>
                     <td style={{ ...tdStyle, color: "var(--s4)" }}>{c.status}</td>
                     <td style={tdStyle}>
-                      <button
-                        onClick={() => deleteFixedCost(c.id, client.id)}
-                        style={{ background: "none", border: "none", color: "var(--s3)", cursor: "pointer", fontSize: 14 }}
-                      >×</button>
+                      <DeleteBtn
+                        confirmMsg={`Delete cost "${c.description}"?`}
+                        onConfirm={() => deleteFixedCost(c.id, client.id)}
+                      />
                     </td>
                   </tr>
                 );
@@ -290,7 +404,7 @@ function AddForm({
       await createMemberEntry({ ...base, task, date, hours: Number(hours) });
     } else if (type === "hours_week") {
       if (!hours || !weekNum) return;
-      const label = weeks.find((w) => w.week === weekNum)?.label || `Week ${weekNum}`;
+      const label = weeks.find((w) => w.week === weekNum)?.label || weekDateLabel(month, weekNum);
       await createMemberEntry({ ...base, task: label, week_num: weekNum, hours: Number(hours) });
     } else {
       if (!fixedItemId) return;

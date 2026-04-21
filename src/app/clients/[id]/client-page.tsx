@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Badge } from "@/app/_components/badge";
 import { formatMoney, getCurrentMonth } from "@/lib/format";
-import { weeksInMonth, isoWeek } from "@/lib/weeks";
+import { weeksInMonth, isoWeek, weekDateLabel } from "@/lib/weeks";
 import type { Client, Entry, FixedItem, FixedCost, ClientMonth, ClientRate, TeamMember, OutsourceMonth } from "@/lib/types";
 import {
   upsertClientMonth,
@@ -19,11 +19,48 @@ import {
   createClientRate,
   updateFixedItemStatus,
   updateFixedCostStatus,
+  updateFixedCostField,
   deleteClientRate,
   assignTeamMember,
   unassignTeamMember,
   upsertOutsourceMonth,
 } from "@/app/actions";
+
+// ─── Delete button with pending state ────────────────────────
+
+function DeleteBtn({
+  onConfirm,
+  confirmMsg,
+  size = 14,
+}: {
+  onConfirm: () => Promise<void> | void;
+  confirmMsg?: string;
+  size?: number;
+}) {
+  const [pending, startTransition] = useTransition();
+  return (
+    <button
+      disabled={pending}
+      onClick={() => {
+        if (confirmMsg && !confirm(confirmMsg)) return;
+        startTransition(async () => {
+          await onConfirm();
+        });
+      }}
+      style={{
+        background: "none",
+        border: "none",
+        color: pending ? "var(--accent)" : "var(--s3)",
+        cursor: pending ? "wait" : "pointer",
+        fontSize: size,
+        opacity: pending ? 0.7 : 1,
+      }}
+      title={pending ? "Deleting…" : "Delete"}
+    >
+      {pending ? "…" : "×"}
+    </button>
+  );
+}
 
 interface Props {
   client: Client;
@@ -579,7 +616,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                         <td style={{ ...tdStyle, cursor: "grab", color: "var(--s3)", width: 20, fontSize: 11, userSelect: "none" }}>⠿</td>
                         <td style={tdStyle}>
                           {e.entry_type === "hours_week" ? (
-                            <span style={{ color: "var(--s4)" }}>Week {e.week_num ?? "?"}</span>
+                            <span style={{ color: "var(--s4)" }}>{weekDateLabel(selectedMonth, e.week_num)}</span>
                           ) : (
                             <EditableText
                               value={e.date || ""}
@@ -659,12 +696,10 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                           </select>
                         </td>
                         <td style={tdStyle}>
-                          <button
-                            onClick={() => deleteEntry(e.id, cl.id)}
-                            style={{ background: "none", border: "none", color: "var(--s3)", cursor: "pointer", fontSize: 14 }}
-                          >
-                            ×
-                          </button>
+                          <DeleteBtn
+                            confirmMsg={`Delete task "${e.task}"?`}
+                            onConfirm={() => deleteEntry(e.id, cl.id)}
+                          />
                         </td>
                       </tr>
                     );
@@ -696,7 +731,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
             {fixed
               .filter((f) => f.month === selectedMonth)
               .map((item) => {
-                const itemCosts = costs.filter((c) => c.fixed_item_id === item.id);
+                const itemCosts = [...costs.filter((c) => c.fixed_item_id === item.id)].reverse();
                 const totalCosts = itemCosts.reduce((s, c) => s + c.amount, 0);
                 const profit = item.total - totalCosts;
                 const available = item.total - item.paid;
@@ -714,14 +749,11 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                         <ItemStatusSelect value={item.status} onChange={(v) => updateFixedItemStatus(item.id, v, cl.id)} />
-                        <button
-                          onClick={() => {
-                            if (confirm("Delete " + item.name + "?")) deleteFixedItem(item.id, cl.id);
-                          }}
-                          style={{ background: "none", border: "none", color: "var(--s3)", cursor: "pointer", fontSize: 16 }}
-                        >
-                          ×
-                        </button>
+                        <DeleteBtn
+                          size={16}
+                          confirmMsg={`Delete "${item.name}" and all its costs?`}
+                          onConfirm={() => deleteFixedItem(item.id, cl.id)}
+                        />
                       </div>
                     </div>
 
@@ -756,21 +788,29 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                               fontSize: 13,
                             }}
                           >
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
                               <CostStatusSelect
                                 value={c.status}
                                 onChange={(v) => updateFixedCostStatus(c.id, v, cl.id)}
                               />
-                              <span>{c.description}</span>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <EditableText
+                                  value={c.description}
+                                  onSave={(v) => updateFixedCostField(c.id, "description", v, cl.id)}
+                                />
+                              </div>
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                              <span style={{ fontWeight: 600 }}>{fm(c.amount)}</span>
-                              <button
-                                onClick={() => deleteFixedCost(c.id, cl.id)}
-                                style={{ background: "none", border: "none", color: "var(--s3)", cursor: "pointer", fontSize: 14 }}
-                              >
-                                ×
-                              </button>
+                              <EditableValue
+                                value={c.amount}
+                                size={13}
+                                format={(v) => fm(v)}
+                                onSave={(v) => updateFixedCostField(c.id, "amount", v, cl.id)}
+                              />
+                              <DeleteBtn
+                                confirmMsg={`Delete cost "${c.description}"?`}
+                                onConfirm={() => deleteFixedCost(c.id, cl.id)}
+                              />
                             </div>
                           </div>
                         ))}
@@ -1025,12 +1065,10 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                       <td style={tdStyle}>{r.role}</td>
                       <td style={{ ...tdStyle, textAlign: "right" }}>{fm(r.rate)}/h</td>
                       <td style={{ ...tdStyle, width: 30 }}>
-                        <button
-                          onClick={() => deleteClientRate(r.id, cl.id)}
-                          style={{ background: "none", border: "none", color: "var(--s3)", cursor: "pointer", fontSize: 14 }}
-                        >
-                          ×
-                        </button>
+                        <DeleteBtn
+                          confirmMsg={`Delete rate for ${r.role}?`}
+                          onConfirm={() => deleteClientRate(r.id, cl.id)}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -1140,7 +1178,7 @@ function AddEntryForm({
       if (!task) return;
       await createEntry({ client_id: clientId, month, task, owner_id: ownerId, role, hours: Number(hours), entry_type: "hours_task", date });
     } else {
-      const label = weeks.find((w) => w.week === weekNum)?.label || `Week ${weekNum}`;
+      const label = weeks.find((w) => w.week === weekNum)?.label || weekDateLabel(month, weekNum);
       await createEntry({ client_id: clientId, month, task: task || label, owner_id: ownerId, role, hours: Number(hours), entry_type: "hours_week", week_num: weekNum });
     }
     onClose();

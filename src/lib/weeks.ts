@@ -26,6 +26,20 @@ export function weekStart(year: number, week: number): Date {
   return monday;
 }
 
+function fmtDay(dt: Date): string {
+  return dt.toLocaleString("en", { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+export function weekDateLabel(monthStr: string, weekNum: number | null | undefined): string {
+  if (!weekNum) return "—";
+  const p = parseMonth(monthStr);
+  if (!p) return `wk ${weekNum}`;
+  const mon = weekStart(p.year, weekNum);
+  const sun = new Date(mon);
+  sun.setUTCDate(mon.getUTCDate() + 6);
+  return `${fmtDay(mon)} – ${fmtDay(sun)}`;
+}
+
 export function weeksInMonth(monthStr: string): { week: number; label: string }[] {
   const p = parseMonth(monthStr);
   if (!p) return [];
@@ -40,9 +54,7 @@ export function weeksInMonth(monthStr: string): { week: number; label: string }[
     const mon = weekStart(p.year, w);
     const sun = new Date(mon);
     sun.setUTCDate(mon.getUTCDate() + 6);
-    const fmt = (dt: Date) =>
-      dt.toLocaleString("en", { month: "short", day: "numeric", timeZone: "UTC" });
-    result.push({ week: w, label: `Week ${w} (${fmt(mon)} – ${fmt(sun)})` });
+    result.push({ week: w, label: `${fmtDay(mon)} – ${fmtDay(sun)}` });
   }
   return result;
 }
