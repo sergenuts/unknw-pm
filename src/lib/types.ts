@@ -1,14 +1,23 @@
 export interface TeamMember {
   id: string;
   name: string;
-  type: "internal" | "outsource" | "lead";
+  type: "internal" | "outsource";
   role: string;
+  is_lead: boolean;
   email: string | null;
   cost_rate: number;
   created_by: string | null;
   password: string | null;
   is_admin: boolean;
 }
+
+export const PROJECT_ROLES = [
+  "designer middle",
+  "designer senior",
+  "creative director",
+  "coder",
+  "copy",
+] as const;
 
 export interface Client {
   id: string;

@@ -6,6 +6,7 @@ import { Badge } from "@/app/_components/badge";
 import { formatMoney, getCurrentMonth } from "@/lib/format";
 import { weeksInMonth, isoWeek, weekDateLabel } from "@/lib/weeks";
 import type { Client, Entry, FixedItem, FixedCost, ClientMonth, ClientRate, TeamMember, OutsourceMonth } from "@/lib/types";
+import { PROJECT_ROLES } from "@/lib/types";
 import {
   upsertClientMonth,
   updateEntryField,
@@ -350,7 +351,11 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
   // Month data
   const mEntriesRaw = entries.filter((e) => e.month === selectedMonth);
   // sort newest-first by day, drag reorder can override
-  const mEntriesSorted = [...mEntriesRaw].sort((a, b) => (Number(b.date) || 0) - (Number(a.date) || 0));
+  const mEntriesSorted = [...mEntriesRaw].sort((a, b) => {
+    const ka = Number(a.date) || (a.week_num ? a.week_num * 7 : 0);
+    const kb = Number(b.date) || (b.week_num ? b.week_num * 7 : 0);
+    return kb - ka;
+  });
   const mEntries = entryOrder.length > 0
     ? entryOrder
         .map((id) => mEntriesSorted.find((e) => e.id === id))
@@ -1078,7 +1083,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
               {showAddRate ? (
                 <AddRateForm
                   clientId={cl.id}
-                  existingRoles={Array.from(new Set(members.map((m) => m.role).filter(Boolean))).sort()}
+                  existingRoles={Array.from(new Set([...PROJECT_ROLES, ...members.map((m) => m.role).filter(Boolean)]))}
                   takenRoles={new Set(rates.filter((r) => r.client_id === cl.id).map((r) => r.role))}
                   onClose={() => setShowAddRate(false)}
                 />

@@ -4,8 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/app/_components/badge";
 import { formatMoney } from "@/lib/format";
-import { createTeamMember, deleteTeamMember, createClient, toggleClientVat, updateTeamMemberRate, updateClientField, updateTeamMemberPassword, updateTeamMemberType, updateTeamMemberRole } from "@/app/actions";
+import { createTeamMember, deleteTeamMember, createClient, toggleClientVat, updateTeamMemberRate, updateClientField, updateTeamMemberPassword, updateTeamMemberType, updateTeamMemberRole, updateTeamMemberIsLead } from "@/app/actions";
 import type { TeamMember, Client, ClientRate } from "@/lib/types";
+import { PROJECT_ROLES } from "@/lib/types";
 
 const thStyle: React.CSSProperties = {
   textAlign: "left",
@@ -112,21 +113,20 @@ function EditablePassword({ value, onSave }: { value: string; onSave: (v: string
 const TYPE_COLORS: Record<string, { bg: string; fg: string }> = {
   internal: { bg: "var(--green-dim)", fg: "var(--green)" },
   outsource: { bg: "var(--yellow-dim)", fg: "var(--yellow)" },
-  lead: { bg: "var(--purple-dim)", fg: "var(--purple)" },
 };
 
 function TypeSelect({
   value,
   onChange,
 }: {
-  value: "internal" | "outsource" | "lead";
-  onChange: (v: "internal" | "outsource" | "lead") => void;
+  value: "internal" | "outsource";
+  onChange: (v: "internal" | "outsource") => void;
 }) {
   const c = TYPE_COLORS[value] || { bg: "var(--s2)", fg: "var(--fg)" };
   return (
     <select
       value={value}
-      onChange={(e) => onChange(e.target.value as "internal" | "outsource" | "lead")}
+      onChange={(e) => onChange(e.target.value as "internal" | "outsource")}
       style={{
         background: c.bg,
         color: c.fg,
@@ -142,8 +142,29 @@ function TypeSelect({
     >
       <option value="internal">internal</option>
       <option value="outsource">outsource</option>
-      <option value="lead">lead</option>
     </select>
+  );
+}
+
+function LeadToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      onClick={() => onChange(!value)}
+      style={{
+        background: value ? "var(--purple-dim)" : "var(--s2)",
+        color: value ? "var(--purple)" : "var(--s4)",
+        border: "none",
+        padding: "4px 10px",
+        fontSize: 10,
+        fontWeight: 600,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        cursor: "pointer",
+      }}
+      title={value ? "This person can lead projects" : "Not a lead"}
+    >
+      {value ? "★ lead" : "—"}
+    </button>
   );
 }
 
@@ -182,7 +203,7 @@ export function SettingsClient({
 }) {
   const members = [...membersRaw].sort((a, b) => a.name.localeCompare(b.name));
   const leadNames = members
-    .filter((m) => m.type === "lead" || m.role === "lead")
+    .filter((m) => m.is_lead)
     .map((m) => m.name);
   const [tab, setTab] = useState<"team" | "clients" | "rates">("team");
   const [showAddMember, setShowAddMember] = useState(false);
@@ -253,6 +274,7 @@ export function SettingsClient({
               <tr>
                 <th style={thStyle}>Name</th>
                 <th style={thStyle}>Type</th>
+                <th style={thStyle}>Lead</th>
                 <th style={thStyle}>Role</th>
                 <th style={thStyle}>Password</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Rate</th>
@@ -261,7 +283,7 @@ export function SettingsClient({
             </thead>
             <tbody>
               {members.map((m) => {
-                const roleOpts = Array.from(new Set([m.role, ...members.map((x) => x.role)].filter(Boolean)));
+                const roleOpts = Array.from(new Set([...PROJECT_ROLES, m.role].filter(Boolean)));
                 return (
                 <tr key={m.id}>
                   <td style={tdStyle}>
@@ -273,10 +295,13 @@ export function SettingsClient({
                     <TypeSelect value={m.type} onChange={(v) => updateTeamMemberType(m.id, v)} />
                   </td>
                   <td style={tdStyle}>
+                    <LeadToggle value={m.is_lead} onChange={(v) => updateTeamMemberIsLead(m.id, v)} />
+                  </td>
+                  <td style={tdStyle}>
                     <select
                       value={m.role}
                       onChange={(e) => updateTeamMemberRole(m.id, e.target.value)}
-                      style={{ ...inputStyle, width: 140, padding: "3px 6px", fontSize: 13, cursor: "pointer" }}
+                      style={{ ...inputStyle, width: 160, padding: "3px 6px", fontSize: 13, cursor: "pointer" }}
                     >
                       {roleOpts.map((r) => (
                         <option key={r} value={r}>{r}</option>
@@ -311,7 +336,6 @@ export function SettingsClient({
 
           {showAddMember ? (
             <AddMemberForm
-              existingRoles={Array.from(new Set(members.map((m) => m.role).filter(Boolean))).sort()}
               onClose={() => setShowAddMember(false)}
             />
           ) : (
@@ -422,16 +446,12 @@ export function SettingsClient({
 
 // ─── Add Member Form ─────────────────────────────────────────
 
-const NEW_ROLE = "__new__";
-
-function AddMemberForm({ existingRoles, onClose }: { existingRoles: string[]; onClose: () => void }) {
+function AddMemberForm({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState("");
-  const [type, setType] = useState<"internal" | "outsource" | "lead">("internal");
-  const [roleSelect, setRoleSelect] = useState<string>(existingRoles[0] || NEW_ROLE);
-  const [roleCustom, setRoleCustom] = useState("");
+  const [type, setType] = useState<"internal" | "outsource">("internal");
+  const [isLead, setIsLead] = useState(false);
+  const [role, setRole] = useState<string>(PROJECT_ROLES[0]);
   const [costRate, setCostRate] = useState("");
-
-  const role = roleSelect === NEW_ROLE ? roleCustom.trim() : roleSelect;
 
   async function handleSubmit() {
     if (!name || !role) return;
@@ -439,6 +459,7 @@ function AddMemberForm({ existingRoles, onClose }: { existingRoles: string[]; on
       name,
       type,
       role,
+      is_lead: isLead,
       email: "",
       ...(type === "outsource" && costRate ? { cost_rate: Number(costRate) } : {}),
     });
@@ -457,24 +478,20 @@ function AddMemberForm({ existingRoles, onClose }: { existingRoles: string[]; on
           <select style={{ ...selectStyle, width: 120 }} value={type} onChange={(e) => setType(e.target.value as typeof type)}>
             <option value="internal">internal</option>
             <option value="outsource">outsource</option>
-            <option value="lead">lead</option>
           </select>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, paddingBottom: 6 }}>
+          <input type="checkbox" checked={isLead} onChange={(e) => setIsLead(e.target.checked)} />
+          <span style={{ fontSize: 12, color: "var(--s4)" }}>is lead</span>
         </div>
         <div>
           <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Role</div>
-          <select style={{ ...selectStyle, width: 140 }} value={roleSelect} onChange={(e) => setRoleSelect(e.target.value)}>
-            {existingRoles.map((r) => (
+          <select style={{ ...selectStyle, width: 160 }} value={role} onChange={(e) => setRole(e.target.value)}>
+            {PROJECT_ROLES.map((r) => (
               <option key={r} value={r}>{r}</option>
             ))}
-            <option value={NEW_ROLE}>+ new role…</option>
           </select>
         </div>
-        {roleSelect === NEW_ROLE && (
-          <div>
-            <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>New role</div>
-            <input autoFocus style={{ ...inputStyle, width: 140 }} value={roleCustom} onChange={(e) => setRoleCustom(e.target.value)} />
-          </div>
-        )}
         {type === "outsource" && (
           <div>
             <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Cost Rate</div>

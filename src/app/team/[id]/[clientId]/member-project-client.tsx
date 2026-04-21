@@ -134,7 +134,13 @@ export function MemberProjectClient({
   );
   const [showAdd, setShowAdd] = useState<null | "hours_task" | "hours_week" | "fixed_task">(null);
 
-  const mEntriesAll = entries.filter((e) => e.month === selectedMonth);
+  const mEntriesAll = entries
+    .filter((e) => e.month === selectedMonth)
+    .sort((a, b) => {
+      const ka = Number(a.date) || (a.week_num ? a.week_num * 7 : 0);
+      const kb = Number(b.date) || (b.week_num ? b.week_num * 7 : 0);
+      return kb - ka;
+    });
   const mEntries = mEntriesAll.filter((e) => e.status !== "rejected" && e.status !== "paused");
   const mFixedItems = fixedItems.filter((f) => f.month === selectedMonth);
   const mFixedCosts = [...fixedCosts.filter((c) =>
