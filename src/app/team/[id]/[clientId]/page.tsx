@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { getCurrentMonth } from "@/lib/format";
+import { guardMemberPage } from "@/lib/auth";
 import type { Client, Entry, TeamMember, ClientRate, FixedItem, FixedCost } from "@/lib/types";
 import { MemberProjectClient } from "./member-project-client";
 
@@ -54,6 +55,7 @@ export default async function MemberProjectPage({
   params: Promise<{ id: string; clientId: string }>;
 }) {
   const { id, clientId } = await params;
+  await guardMemberPage(id);
   const { member, client, entries, rates, assigned, assignmentCostRate, fixedItems, fixedCosts } = await getData(id, clientId);
   if (!member || !client) return <div style={{ color: "var(--s4)" }}>Not found</div>;
   if (!assigned) {

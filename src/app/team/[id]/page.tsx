@@ -2,6 +2,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { getCurrentMonth, formatMoney } from "@/lib/format";
 import { Badge } from "@/app/_components/badge";
+import { guardMemberPage } from "@/lib/auth";
 import type { Client, Entry, TeamMember, ClientRate, FixedCost, FixedItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,7 @@ async function getData(memberId: string) {
 
 export default async function MemberPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  await guardMemberPage(id);
   const { member, assignedClientIds, clients, entries, rates, fixedCosts, fixedItems } = await getData(id);
   if (!member) return <div style={{ color: "var(--s4)" }}>Member not found</div>;
   const cur = getCurrentMonth();

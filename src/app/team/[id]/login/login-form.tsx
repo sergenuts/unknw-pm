@@ -30,9 +30,11 @@ const btnStyle: React.CSSProperties = {
 export function MemberLoginForm({
   memberId,
   memberName,
+  hasPassword,
 }: {
   memberId: string;
   memberName: string | null;
+  hasPassword: boolean;
 }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -95,16 +97,24 @@ export function MemberLoginForm({
           </div>
         )}
 
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>Password</div>
-          <input autoFocus style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        </div>
-        {error && (
-          <div style={{ color: "var(--red, #f66)", fontSize: 12, marginTop: 8 }}>{error}</div>
+        {hasPassword ? (
+          <>
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>Password</div>
+              <input autoFocus style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+            {error && (
+              <div style={{ color: "var(--red, #f66)", fontSize: 12, marginTop: 8 }}>{error}</div>
+            )}
+            <button type="submit" style={btnStyle} disabled={busy}>
+              {busy ? "..." : "Sign in"}
+            </button>
+          </>
+        ) : (
+          <div style={{ fontSize: 13, color: "var(--s4)", lineHeight: 1.5 }}>
+            No password is set for this account. Ask an admin to set one in Settings → Team.
+          </div>
         )}
-        <button type="submit" style={btnStyle} disabled={busy}>
-          {busy ? "..." : "Sign in"}
-        </button>
       </form>
     </div>
   );
