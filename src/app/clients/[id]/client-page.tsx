@@ -25,6 +25,7 @@ import {
   deleteClientRate,
   assignTeamMember,
   unassignTeamMember,
+  updateAssignmentRate,
   upsertOutsourceMonth,
 } from "@/app/actions";
 
@@ -71,7 +72,7 @@ interface Props {
   months: ClientMonth[];
   fixed: FixedItem[];
   costs: FixedCost[];
-  assignments: { id: string; member_id: string; client_id: string }[];
+  assignments: { id: string; member_id: string; client_id: string; cost_rate: number | null }[];
   members: TeamMember[];
   outsourceMonths: OutsourceMonth[];
 }
@@ -931,7 +932,8 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                     {Array.from(outsourceOwners.entries()).map(([ownerId, hours]) => {
                       const m = members.find((mb) => mb.id === ownerId)!;
                       const om = outsourceMonths.find((o) => o.member_id === ownerId && o.month === selectedMonth);
-                      const rate = om?.rate_override ?? m.cost_rate ?? 0;
+                      const assignRate = assignments.find((a) => a.member_id === ownerId)?.cost_rate;
+                      const rate = om?.rate_override ?? assignRate ?? m.cost_rate ?? 0;
                       const toPay = hours * rate;
                       const paid = om?.paid || 0;
                       const status = om?.status || "pending";
@@ -1017,7 +1019,8 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                     return rows.map(([ownerId, hours], idx) => {
                       const m = members.find((mb) => mb.id === ownerId)!;
                       const om = outsourceMonths.find((o) => o.member_id === ownerId && o.month === month);
-                      const rate = om?.rate_override ?? m.cost_rate ?? 0;
+                      const assignRate = assignments.find((a) => a.member_id === ownerId)?.cost_rate;
+                      const rate = om?.rate_override ?? assignRate ?? m.cost_rate ?? 0;
                       const toPay = hours * rate;
                       const paid = om?.paid || 0;
                       const status = om?.status || "pending";
@@ -1137,6 +1140,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
               clientId={cl.id}
               members={members}
               assignments={assignments}
+              currency={cl.currency}
             />
           </div>
         )}
@@ -1504,15 +1508,21 @@ function AssignedMembers({
   clientId,
   members,
   assignments,
+  currency,
 }: {
   clientId: string;
   members: TeamMember[];
-  assignments: { id: string; member_id: string; client_id: string }[];
+  assignments: { id: string; member_id: string; client_id: string; cost_rate: number | null }[];
+  currency: string;
 }) {
   const assignedIds = new Set(assignments.map((a) => a.member_id));
+  const assignmentByMember = new Map(assignments.map((a) => [a.member_id, a]));
   const assignedMembers = members.filter((m) => assignedIds.has(m.id));
   const unassigned = members.filter((m) => !assignedIds.has(m.id));
   const [pick, setPick] = useState("");
+  const [pickRate, setPickRate] = useState("");
+  const pickedMember = members.find((m) => m.id === pick);
+  const needsRate = pickedMember?.type === "outsource";
 
   return (
     <div>
@@ -1520,13 +1530,16 @@ function AssignedMembers({
         Assigned to project
       </div>
       <div style={{ fontSize: 12, color: "var(--s4)", marginBottom: 12 }}>
-        Assigned members will be able to log hours to this project.
+        Assigned members will be able to log hours to this project. Outsourcers need a project cost rate.
       </div>
       {assignedMembers.length === 0 ? (
         <div style={{ color: "var(--s4)", fontSize: 13, marginBottom: 12 }}>No one assigned yet</div>
       ) : (
         <div style={{ marginBottom: 12 }}>
-          {assignedMembers.map((m) => (
+          {assignedMembers.map((m) => {
+            const a = assignmentByMember.get(m.id);
+            const rate = a?.cost_rate ?? (m.type === "outsource" ? m.cost_rate : null);
+            return (
             <div
               key={m.id}
               style={{
@@ -1540,14 +1553,27 @@ function AssignedMembers({
               <Badge type={m.type}>{m.type}</Badge>
               <span style={{ fontSize: 13 }}>{m.name}</span>
               <span style={{ fontSize: 12, color: "var(--s4)" }}>{m.role}</span>
+              {m.type === "outsource" && a && (
+                <span style={{ fontSize: 12, color: "var(--yellow)", marginLeft: "auto", display: "flex", alignItems: "center", gap: 4 }}>
+                  cost:
+                  <EditableValue
+                    value={rate || 0}
+                    size={12}
+                    color="var(--yellow)"
+                    format={(v) => formatMoney(v, currency) + "/h"}
+                    onSave={(v) => updateAssignmentRate(a.id, v, clientId, m.id)}
+                  />
+                </span>
+              )}
               <button
                 onClick={() => unassignTeamMember(m.id, clientId)}
-                style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--s3)", cursor: "pointer", fontSize: 14 }}
+                style={{ marginLeft: m.type === "outsource" ? 8 : "auto", background: "none", border: "none", color: "var(--s3)", cursor: "pointer", fontSize: 14 }}
               >
                 ×
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -1555,7 +1581,7 @@ function AssignedMembers({
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginTop: 8 }}>
           <select
             value={pick}
-            onChange={(e) => setPick(e.target.value)}
+            onChange={(e) => { setPick(e.target.value); setPickRate(""); }}
             style={{ ...selectStyle, width: 220 }}
           >
             <option value="">Select member…</option>
@@ -1565,11 +1591,28 @@ function AssignedMembers({
               </option>
             ))}
           </select>
+          {needsRate && (
+            <div>
+              <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>
+                Cost rate / h
+              </div>
+              <input
+                type="number"
+                value={pickRate}
+                onChange={(e) => setPickRate(e.target.value)}
+                placeholder={String(pickedMember?.cost_rate || "")}
+                style={{ ...inputStyle, width: 90 }}
+              />
+            </div>
+          )}
           <button
             onClick={() => {
               if (!pick) return;
-              assignTeamMember(pick, clientId);
+              if (needsRate && !pickRate) { alert("Enter cost rate for outsourcer"); return; }
+              const r = needsRate ? Number(pickRate) : undefined;
+              assignTeamMember(pick, clientId, r);
               setPick("");
+              setPickRate("");
             }}
             style={btnStyle}
           >

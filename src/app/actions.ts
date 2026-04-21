@@ -339,9 +339,22 @@ export async function deleteClientRate(rateId: string, clientId: string) {
 
 // ─── Team Assignments ────────────────────────────────────────
 
-export async function assignTeamMember(memberId: string, clientId: string) {
-  await supabase.from("team_assignments").insert({ member_id: memberId, client_id: clientId });
+export async function assignTeamMember(memberId: string, clientId: string, costRate?: number) {
+  await supabase.from("team_assignments").insert({
+    member_id: memberId,
+    client_id: clientId,
+    cost_rate: costRate ?? null,
+  });
   revalidatePath("/clients/" + clientId);
+  revalidatePath("/team/" + memberId);
+  revalidatePath("/team/" + memberId + "/" + clientId);
+}
+
+export async function updateAssignmentRate(assignmentId: string, costRate: number, clientId: string, memberId: string) {
+  await supabase.from("team_assignments").update({ cost_rate: costRate }).eq("id", assignmentId);
+  revalidatePath("/clients/" + clientId);
+  revalidatePath("/team/" + memberId);
+  revalidatePath("/team/" + memberId + "/" + clientId);
 }
 
 export async function unassignTeamMember(memberId: string, clientId: string) {

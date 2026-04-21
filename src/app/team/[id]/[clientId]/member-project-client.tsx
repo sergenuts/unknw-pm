@@ -113,7 +113,7 @@ const monthOrder = [
 ];
 
 export function MemberProjectClient({
-  member, client, entries, rates, fixedItems, fixedCosts, currentMonth,
+  member, client, entries, rates, fixedItems, fixedCosts, currentMonth, assignmentCostRate,
 }: {
   member: TeamMember;
   client: Client;
@@ -122,6 +122,7 @@ export function MemberProjectClient({
   fixedItems: FixedItem[];
   fixedCosts: FixedCost[];
   currentMonth: string;
+  assignmentCostRate: number | null;
 }) {
   const monthSet = new Set<string>();
   entries.forEach((e) => monthSet.add(e.month));
@@ -195,6 +196,11 @@ export function MemberProjectClient({
         <div style={{ fontSize: 12, color: "var(--s4)", marginTop: 8 }}>
           Rates: {rates.length === 0 ? "none" : rates.map((r) => `${r.role} ${fm(r.rate)}/h`).join(" · ")}
         </div>
+        {member.type === "outsource" && assignmentCostRate != null && (
+          <div style={{ fontSize: 12, color: "var(--yellow)", marginTop: 4 }}>
+            Your rate on this project: {fm(assignmentCostRate)}/h
+          </div>
+        )}
       </div>
 
       {/* Month tabs */}

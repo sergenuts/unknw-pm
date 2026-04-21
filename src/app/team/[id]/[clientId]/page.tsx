@@ -35,12 +35,14 @@ async function getData(memberId: string, clientId: string) {
       .eq("member_id", memberId);
     fixedCosts = (data || []) as FixedCost[];
   }
+  const assignment = (assignRes.data || [])[0] as { cost_rate: number | null } | undefined;
   return {
     member: memberRes.data as TeamMember | null,
     client: clientRes.data as Client | null,
     entries: (entriesRes.data || []) as Entry[],
     rates: (ratesRes.data || []) as ClientRate[],
-    assigned: (assignRes.data || []).length > 0,
+    assigned: !!assignment,
+    assignmentCostRate: assignment?.cost_rate ?? null,
     fixedItems,
     fixedCosts,
   };
@@ -52,7 +54,7 @@ export default async function MemberProjectPage({
   params: Promise<{ id: string; clientId: string }>;
 }) {
   const { id, clientId } = await params;
-  const { member, client, entries, rates, assigned, fixedItems, fixedCosts } = await getData(id, clientId);
+  const { member, client, entries, rates, assigned, assignmentCostRate, fixedItems, fixedCosts } = await getData(id, clientId);
   if (!member || !client) return <div style={{ color: "var(--s4)" }}>Not found</div>;
   if (!assigned) {
     return (
@@ -73,6 +75,7 @@ export default async function MemberProjectPage({
       fixedItems={fixedItems}
       fixedCosts={fixedCosts}
       currentMonth={cur}
+      assignmentCostRate={assignmentCostRate}
     />
   );
 }

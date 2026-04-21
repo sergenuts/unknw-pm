@@ -8,6 +8,7 @@ interface TeamAssignment {
   id: string;
   member_id: string;
   client_id: string;
+  cost_rate: number | null;
 }
 
 async function getData(id: string) {
