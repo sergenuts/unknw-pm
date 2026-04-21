@@ -6,6 +6,7 @@ const colors: Record<string, { bg: string; fg: string }> = {
   "in progress": { bg: "var(--yellow-dim)", fg: "var(--yellow)" },
   paused: { bg: "var(--yellow-dim)", fg: "var(--yellow)" },
   outsource: { bg: "var(--yellow-dim)", fg: "var(--yellow)" },
+  lead: { bg: "var(--purple-dim)", fg: "var(--purple)" },
   spent: { bg: "var(--yellow-dim)", fg: "var(--yellow)" },
   submitted: { bg: "var(--purple-dim)", fg: "var(--purple)" },
   pending: { bg: "var(--purple-dim)", fg: "var(--purple)" },

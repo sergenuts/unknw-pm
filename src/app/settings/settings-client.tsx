@@ -109,6 +109,44 @@ function EditablePassword({ value, onSave }: { value: string; onSave: (v: string
   );
 }
 
+const TYPE_COLORS: Record<string, { bg: string; fg: string }> = {
+  internal: { bg: "var(--green-dim)", fg: "var(--green)" },
+  outsource: { bg: "var(--yellow-dim)", fg: "var(--yellow)" },
+  lead: { bg: "var(--purple-dim)", fg: "var(--purple)" },
+};
+
+function TypeSelect({
+  value,
+  onChange,
+}: {
+  value: "internal" | "outsource" | "lead";
+  onChange: (v: "internal" | "outsource" | "lead") => void;
+}) {
+  const c = TYPE_COLORS[value] || { bg: "var(--s2)", fg: "var(--fg)" };
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value as "internal" | "outsource" | "lead")}
+      style={{
+        background: c.bg,
+        color: c.fg,
+        border: "none",
+        padding: "4px 8px",
+        fontSize: 10,
+        fontWeight: 600,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        cursor: "pointer",
+        width: 130,
+      }}
+    >
+      <option value="internal">internal</option>
+      <option value="outsource">outsource</option>
+      <option value="lead">lead</option>
+    </select>
+  );
+}
+
 function EditableLead({
   value,
   leads,
@@ -230,15 +268,7 @@ export function SettingsClient({
                     </Link>
                   </td>
                   <td style={tdStyle}>
-                    <select
-                      value={m.type}
-                      onChange={(e) => updateTeamMemberType(m.id, e.target.value as "internal" | "outsource" | "lead")}
-                      style={{ ...inputStyle, width: 120, padding: "3px 6px", fontSize: 11, textTransform: "uppercase", cursor: "pointer" }}
-                    >
-                      <option value="internal">internal</option>
-                      <option value="outsource">outsource</option>
-                      <option value="lead">lead</option>
-                    </select>
+                    <TypeSelect value={m.type} onChange={(v) => updateTeamMemberType(m.id, v)} />
                   </td>
                   <td style={tdStyle}>
                     <select
