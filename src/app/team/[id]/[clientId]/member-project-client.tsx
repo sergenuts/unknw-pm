@@ -54,7 +54,8 @@ export function MemberProjectClient({
   );
   const [showAdd, setShowAdd] = useState<null | "hours_task" | "hours_week" | "fixed_task">(null);
 
-  const mEntries = entries.filter((e) => e.month === selectedMonth);
+  const mEntriesAll = entries.filter((e) => e.month === selectedMonth);
+  const mEntries = mEntriesAll.filter((e) => e.status !== "rejected" && e.status !== "paused");
   const mFixedItems = fixedItems.filter((f) => f.month === selectedMonth);
   const mFixedCosts = fixedCosts.filter((c) =>
     mFixedItems.some((f) => f.id === c.fixed_item_id),
@@ -62,10 +63,26 @@ export function MemberProjectClient({
   const rateFor = (role: string) => rates.find((r) => r.role === role)?.rate || 0;
   const fm = (v: number) => formatMoney(v, client.currency);
 
+  const isBilledEntry = (s: string) => s === "done";
+  const isEstimateEntry = (s: string) => s === "pending" || s === "submitted" || s === "in progress";
+  const isBilledCost = (s: string) => s === "paid" || s === "spent";
+  const isEstimateCost = (s: string) => s === "pending" || s === "planned";
+
   const totalHours = mEntries.reduce((s, e) => s + (e.hours || 0), 0);
-  const totalFromHours = mEntries.reduce((s, e) => s + (e.hours || 0) * rateFor(e.role), 0);
-  const totalFromFixed = mFixedCosts.reduce((s, c) => s + (c.amount || 0), 0);
-  const totalBilled = totalFromHours + totalFromFixed;
+  const billedFromHours = mEntries
+    .filter((e) => isBilledEntry(e.status))
+    .reduce((s, e) => s + (e.hours || 0) * rateFor(e.role), 0);
+  const billedFromFixed = mFixedCosts
+    .filter((c) => isBilledCost(c.status))
+    .reduce((s, c) => s + (c.amount || 0), 0);
+  const totalBilled = billedFromHours + billedFromFixed;
+  const estimateFromHours = mEntries
+    .filter((e) => isEstimateEntry(e.status))
+    .reduce((s, e) => s + (e.hours || 0) * rateFor(e.role), 0);
+  const estimateFromFixed = mFixedCosts
+    .filter((c) => isEstimateCost(c.status))
+    .reduce((s, c) => s + (c.amount || 0), 0);
+  const totalEstimate = estimateFromHours + estimateFromFixed;
 
   return (
     <div>
@@ -117,6 +134,10 @@ export function MemberProjectClient({
           <div style={{ fontSize: 15, fontWeight: 700, color: "var(--green)", lineHeight: 1 }}>{fm(totalBilled)}</div>
           <div style={{ fontSize: 9, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 }}>billed</div>
         </div>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--yellow)", lineHeight: 1 }}>{fm(totalEstimate)}</div>
+          <div style={{ fontSize: 9, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 }}>estimate</div>
+        </div>
       </div>
 
       {/* Add buttons */}
@@ -157,7 +178,7 @@ export function MemberProjectClient({
 
       {/* Entries list */}
       <div style={{ marginTop: 24 }}>
-        {mEntries.length === 0 && mFixedCosts.length === 0 ? (
+        {mEntriesAll.length === 0 && mFixedCosts.length === 0 ? (
           <div style={{ color: "var(--s4)", fontSize: 13, padding: "12px 0" }}>No entries yet for this month.</div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -173,7 +194,7 @@ export function MemberProjectClient({
               </tr>
             </thead>
             <tbody>
-              {mEntries.map((e) => {
+              {mEntriesAll.map((e) => {
                 const r = rateFor(e.role);
                 const amt = (e.hours || 0) * r;
                 const when =
@@ -251,6 +272,10 @@ function AddForm({
   const [weekNum, setWeekNum] = useState(weeks[0]?.week || 0);
   const [fixedItemId, setFixedItemId] = useState(fixedItems[0]?.id || "");
   const [note, setNote] = useState("");
+  const [fixedBillingMode, setFixedBillingMode] = useState<"amount" | "hours">("amount");
+  const [fixedHours, setFixedHours] = useState("");
+  const rateForFixed = rates.find((r) => r.role === role)?.rate || member.cost_rate || 0;
+  const computedFromHours = (Number(fixedHours) || 0) * rateForFixed;
 
   async function submit() {
     const base = {
@@ -268,14 +293,27 @@ function AddForm({
       const label = weeks.find((w) => w.week === weekNum)?.label || `Week ${weekNum}`;
       await createMemberEntry({ ...base, task: label, week_num: weekNum, hours: Number(hours) });
     } else {
-      if (!fixedItemId || !amount) return;
+      if (!fixedItemId) return;
+      let finalAmount = 0;
+      let description = note || member.name;
+      if (fixedBillingMode === "hours") {
+        const h = Number(fixedHours);
+        if (!h) return;
+        finalAmount = h * rateForFixed;
+        description = `${description} — ${h}h × ${rateForFixed}`;
+      } else {
+        if (!amount) return;
+        finalAmount = Number(amount);
+      }
       await createFixedCost({
         fixed_item_id: fixedItemId,
         type: "outsourcer",
-        description: note || member.name,
-        amount: Number(amount),
+        description,
+        amount: finalAmount,
         status: "pending",
         member_id: member.id,
+        hours: fixedBillingMode === "hours" ? Number(fixedHours) : undefined,
+        rate: fixedBillingMode === "hours" ? rateForFixed : undefined,
         clientId: client.id,
       });
     }
@@ -344,6 +382,20 @@ function AddForm({
 
         {type === "fixed_task" && (
           <>
+            <div style={{ width: "100%", display: "flex", gap: 6, marginBottom: 4 }}>
+              <button
+                onClick={() => setFixedBillingMode("amount")}
+                style={{ ...btnStyle, fontSize: 10, padding: "4px 10px", background: fixedBillingMode === "amount" ? "var(--accent)" : "var(--s2)", color: fixedBillingMode === "amount" ? "#fff" : "var(--s4)" }}
+              >
+                Fixed amount
+              </button>
+              <button
+                onClick={() => setFixedBillingMode("hours")}
+                style={{ ...btnStyle, fontSize: 10, padding: "4px 10px", background: fixedBillingMode === "hours" ? "var(--accent)" : "var(--s2)", color: fixedBillingMode === "hours" ? "#fff" : "var(--s4)" }}
+              >
+                By hours
+              </button>
+            </div>
             <div style={{ flex: 1, minWidth: 200 }}>
               <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Fixed item</div>
               <select
@@ -360,10 +412,22 @@ function AddForm({
               <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Note</div>
               <input style={{ ...inputStyle, width: "100%" }} value={note} onChange={(e) => setNote(e.target.value)} />
             </div>
-            <div>
-              <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Amount</div>
-              <input style={{ ...inputStyle, width: 100 }} type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
-            </div>
+            {fixedBillingMode === "amount" ? (
+              <div>
+                <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Amount</div>
+                <input style={{ ...inputStyle, width: 100 }} type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              </div>
+            ) : (
+              <>
+                <div>
+                  <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Hours</div>
+                  <input style={{ ...inputStyle, width: 80 }} type="number" value={fixedHours} onChange={(e) => setFixedHours(e.target.value)} />
+                </div>
+                <div style={{ fontSize: 12, color: "var(--s4)", paddingBottom: 6 }}>
+                  × {rateForFixed}/h = {formatMoney(computedFromHours, client.currency)}
+                </div>
+              </>
+            )}
           </>
         )}
 

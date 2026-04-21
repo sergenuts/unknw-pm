@@ -18,6 +18,7 @@ import {
   deleteFixedItem,
   createClientRate,
   updateFixedItemStatus,
+  updateFixedCostStatus,
   deleteClientRate,
   assignTeamMember,
   unassignTeamMember,
@@ -206,6 +207,71 @@ function EditableValue({
   );
 }
 
+const ITEM_STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
+  "in progress": { bg: "var(--yellow-dim)", fg: "var(--yellow)" },
+  done: { bg: "var(--green-dim)", fg: "var(--green)" },
+  paused: { bg: "rgba(255,255,255,.06)", fg: "var(--s3)" },
+};
+
+function ItemStatusSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const c = ITEM_STATUS_COLORS[value] || { bg: "rgba(255,255,255,.06)", fg: "var(--s3)" };
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      style={{
+        background: c.bg,
+        color: c.fg,
+        border: "none",
+        padding: "4px 10px",
+        fontSize: 11,
+        fontWeight: 600,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        cursor: "pointer",
+        width: 130,
+      }}
+    >
+      <option value="in progress">in progress</option>
+      <option value="done">done</option>
+      <option value="paused">paused</option>
+    </select>
+  );
+}
+
+const COST_STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
+  planned: { bg: "var(--yellow-dim)", fg: "var(--yellow)" },
+  pending: { bg: "var(--purple-dim)", fg: "var(--purple)" },
+  spent: { bg: "var(--yellow-dim)", fg: "var(--yellow)" },
+  paid: { bg: "var(--green-dim)", fg: "var(--green)" },
+};
+
+function CostStatusSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const c = COST_STATUS_COLORS[value] || { bg: "rgba(255,255,255,.06)", fg: "var(--s3)" };
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      style={{
+        background: c.bg,
+        color: c.fg,
+        border: "none",
+        padding: "3px 8px",
+        fontSize: 10,
+        fontWeight: 600,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        cursor: "pointer",
+      }}
+    >
+      <option value="planned">planned</option>
+      <option value="pending">pending</option>
+      <option value="spent">spent</option>
+      <option value="paid">paid</option>
+    </select>
+  );
+}
+
 // ─── Main Component ──────────────────────────────────────────
 
 export function ClientDetail({ client, entries, rates, months, fixed, costs, assignments, members: membersRaw, outsourceMonths }: Props) {
@@ -261,7 +327,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
   // Auto estimate: all non-rejected tasks (by rate) + fixed items
   const mEstAuto =
     mEntries
-      .filter((e) => e.status !== "rejected")
+      .filter((e) => e.status !== "rejected" && e.status !== "paused")
       .reduce((s, e) => s + e.hours * (e.coeff || 1) * getRate(e.role), 0) +
     fixed
       .filter((f) => f.month === selectedMonth)
@@ -647,15 +713,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                         </span>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <select
-                          value={item.status}
-                          onChange={(e) => updateFixedItemStatus(item.id, e.target.value, cl.id)}
-                          style={{ ...selectStyle, width: 120, padding: "3px 6px", fontSize: 11, textTransform: "uppercase" }}
-                        >
-                          <option value="in progress">in progress</option>
-                          <option value="done">done</option>
-                          <option value="paused">paused</option>
-                        </select>
+                        <ItemStatusSelect value={item.status} onChange={(v) => updateFixedItemStatus(item.id, v, cl.id)} />
                         <button
                           onClick={() => {
                             if (confirm("Delete " + item.name + "?")) deleteFixedItem(item.id, cl.id);
@@ -668,47 +726,19 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                     </div>
 
                     {/* Stats */}
-                    <div style={{ display: "flex", gap: 32, marginBottom: 8 }}>
+                    <div style={{ display: "flex", gap: 40, marginBottom: 16 }}>
                       <div>
                         <div style={{ fontSize: 22, fontWeight: 800, color: "var(--green)", lineHeight: 1 }}>{fm(item.total)}</div>
                         <div style={{ fontSize: 10, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 }}>client pays</div>
                       </div>
                       <div>
-                        <EditableValue
-                          value={item.paid}
-                          size={22}
-                          color="var(--fg)"
-                          format={(v) => fm(v)}
-                          onSave={(v) => updateFixedItemPaid(item.id, v, cl.id)}
-                        />
-                        <div style={{ fontSize: 10, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 }}>paid</div>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: "var(--yellow)", lineHeight: 1 }}>{fm(totalCosts)}</div>
+                        <div style={{ fontSize: 10, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 }}>estimate costs</div>
                       </div>
                       <div>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: "var(--green)", lineHeight: 1 }}>{fm(profit)}</div>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: profit >= 0 ? "var(--green)" : "var(--red)", lineHeight: 1 }}>{fm(profit)}</div>
                         <div style={{ fontSize: 10, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 }}>profit</div>
                       </div>
-                    </div>
-
-                    <div style={{ display: "flex", gap: 24, borderTop: "1px solid var(--s2)", paddingTop: 12, marginBottom: 16 }}>
-                      <div>
-                        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--yellow)", lineHeight: 1 }}>{fm(totalCosts)}</div>
-                        <div style={{ fontSize: 9, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 }}>costs</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 16, fontWeight: 800, lineHeight: 1 }}>{fm(available)}</div>
-                        <div style={{ fontSize: 9, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 }}>available</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 16, fontWeight: 800, color: owes > 0 ? "var(--red)" : "var(--green)", lineHeight: 1 }}>
-                          {owes <= 0 ? "settled" : fm(owes)}
-                        </div>
-                        <div style={{ fontSize: 9, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 }}>owes</div>
-                      </div>
-                    </div>
-
-                    {/* Progress bar */}
-                    <div style={{ height: 4, background: "var(--s2)", marginBottom: 20 }}>
-                      <div style={{ height: "100%", width: progress + "%", background: "var(--green)" }} />
                     </div>
 
                     {/* Costs list */}
@@ -727,7 +757,10 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                             }}
                           >
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <Badge type={c.status}>{c.status}</Badge>
+                              <CostStatusSelect
+                                value={c.status}
+                                onChange={(v) => updateFixedCostStatus(c.id, v, cl.id)}
+                              />
                               <span>{c.description}</span>
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
