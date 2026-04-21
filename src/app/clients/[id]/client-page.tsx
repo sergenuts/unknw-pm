@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/app/_components/badge";
 import { formatMoney, getCurrentMonth } from "@/lib/format";
-import { weeksInMonth } from "@/lib/weeks";
+import { weeksInMonth, isoWeek } from "@/lib/weeks";
 import type { Client, Entry, FixedItem, FixedCost, ClientMonth, ClientRate, TeamMember, OutsourceMonth } from "@/lib/types";
 import {
   upsertClientMonth,
@@ -507,11 +507,15 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                       >
                         <td style={{ ...tdStyle, cursor: "grab", color: "var(--s3)", width: 20, fontSize: 11, userSelect: "none" }}>⠿</td>
                         <td style={tdStyle}>
-                          <EditableText
-                            value={e.date || ""}
-                            placeholder="—"
-                            onSave={(v) => updateEntryField(e.id, "date", v, cl.id)}
-                          />
+                          {e.entry_type === "hours_week" ? (
+                            <span style={{ color: "var(--s4)" }}>Week {e.week_num ?? "?"}</span>
+                          ) : (
+                            <EditableText
+                              value={e.date || ""}
+                              placeholder="—"
+                              onSave={(v) => updateEntryField(e.id, "date", v, cl.id)}
+                            />
+                          )}
                         </td>
                         <td style={tdStyle}>
                           <EditableText
@@ -1066,7 +1070,10 @@ function AddEntryForm({
   const [mode, setMode] = useState<"date" | "week">("date");
   const [date, setDate] = useState(new Date().getDate().toString());
   const weeks = weeksInMonth(month);
-  const [weekNum, setWeekNum] = useState(weeks[0]?.week || 0);
+  const currentWeek = isoWeek(new Date());
+  const [weekNum, setWeekNum] = useState(
+    weeks.find((w) => w.week === currentWeek)?.week || weeks[0]?.week || 0,
+  );
   const [task, setTask] = useState("");
   const firstMember = members[0];
   const [ownerId, setOwnerId] = useState(firstMember?.id || "");
@@ -1085,8 +1092,9 @@ function AddEntryForm({
   }
 
   async function handleSubmit() {
-    if (!task || !ownerId || !role || !hours) return;
+    if (!ownerId || !role || !hours) return;
     if (mode === "date") {
+      if (!task) return;
       await createEntry({ client_id: clientId, month, task, owner_id: ownerId, role, hours: Number(hours), entry_type: "hours_task", date });
     } else {
       const label = weeks.find((w) => w.week === weekNum)?.label || `Week ${weekNum}`;
