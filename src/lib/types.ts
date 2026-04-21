@@ -1,7 +1,7 @@
 export interface TeamMember {
   id: string;
   name: string;
-  type: "internal" | "outsource";
+  type: "internal" | "outsource" | "lead";
   role: string;
   email: string | null;
   cost_rate: number;

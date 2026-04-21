@@ -109,28 +109,27 @@ function EditablePassword({ value, onSave }: { value: string; onSave: (v: string
   );
 }
 
-function EditableLead({ value, onSave }: { value: string; onSave: (v: string) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [val, setVal] = useState(value);
-  if (editing) {
-    return (
-      <input
-        autoFocus
-        style={{ ...inputStyle, width: 140, fontSize: 13 }}
-        value={val}
-        onChange={(e) => setVal(e.target.value)}
-        onBlur={() => { onSave(val); setEditing(false); }}
-        onKeyDown={(e) => { if (e.key === "Enter") { onSave(val); setEditing(false); } }}
-      />
-    );
-  }
+function EditableLead({
+  value,
+  leads,
+  onSave,
+}: {
+  value: string;
+  leads: string[];
+  onSave: (v: string) => void;
+}) {
   return (
-    <span
-      onClick={() => { setVal(value); setEditing(true); }}
-      style={{ cursor: "pointer", borderBottom: "1px dashed var(--s3)", fontSize: 13, color: value ? "var(--fg)" : "var(--s4)" }}
+    <select
+      value={value || ""}
+      onChange={(e) => onSave(e.target.value)}
+      style={{ ...inputStyle, width: 160, padding: "3px 6px", cursor: "pointer" }}
     >
-      {value || "—"}
-    </span>
+      <option value="">—</option>
+      {leads.map((l) => (
+        <option key={l} value={l}>{l}</option>
+      ))}
+      {value && !leads.includes(value) && <option value={value}>{value}</option>}
+    </select>
   );
 }
 
@@ -144,6 +143,7 @@ export function SettingsClient({
   rates: ClientRate[];
 }) {
   const members = [...membersRaw].sort((a, b) => a.name.localeCompare(b.name));
+  const leadNames = members.filter((m) => m.type === "lead").map((m) => m.name);
   const [tab, setTab] = useState<"team" | "clients" | "rates">("team");
   const [showAddMember, setShowAddMember] = useState(false);
   const [showAddClient, setShowAddClient] = useState(false);
@@ -309,7 +309,7 @@ export function SettingsClient({
                     </span>
                   </td>
                   <td style={tdStyle}>
-                    <EditableLead value={cl.deal_lead || ""} onSave={(v) => updateClientField(cl.id, "deal_lead", v)} />
+                    <EditableLead value={cl.deal_lead || ""} leads={leadNames} onSave={(v) => updateClientField(cl.id, "deal_lead", v)} />
                   </td>
                 </tr>
               ))}
@@ -317,7 +317,7 @@ export function SettingsClient({
           </table>
 
           {showAddClient ? (
-            <AddClientForm onClose={() => setShowAddClient(false)} />
+            <AddClientForm leads={leadNames} onClose={() => setShowAddClient(false)} />
           ) : (
             <button onClick={() => setShowAddClient(true)} style={{ ...btnStyle, marginTop: 16 }}>
               + ADD CLIENT
@@ -439,7 +439,7 @@ function AddMemberForm({ existingRoles, onClose }: { existingRoles: string[]; on
 
 // ─── Add Client Form ─────────────────────────────────────────
 
-function AddClientForm({ onClose }: { onClose: () => void }) {
+function AddClientForm({ leads, onClose }: { leads: string[]; onClose: () => void }) {
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("GBP");
   const [vat, setVat] = useState(false);
@@ -488,7 +488,12 @@ function AddClientForm({ onClose }: { onClose: () => void }) {
         </div>
         <div>
           <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Deal Lead</div>
-          <input style={{ ...inputStyle, width: 130 }} value={dealLead} onChange={(e) => setDealLead(e.target.value)} />
+          <select style={{ ...selectStyle, width: 150 }} value={dealLead} onChange={(e) => setDealLead(e.target.value)}>
+            <option value="">—</option>
+            {leads.map((l) => (
+              <option key={l} value={l}>{l}</option>
+            ))}
+          </select>
         </div>
         <button onClick={handleSubmit} style={btnStyle}>ADD</button>
         <button onClick={onClose} style={{ ...btnStyle, background: "var(--s2)", color: "var(--s4)" }}>CANCEL</button>

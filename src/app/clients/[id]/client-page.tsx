@@ -210,6 +210,11 @@ function EditableValue({
 
 export function ClientDetail({ client, entries, rates, months, fixed, costs, assignments, members: membersRaw, outsourceMonths }: Props) {
   const members = [...membersRaw].sort((a, b) => a.name.localeCompare(b.name));
+  const assignedMemberIds = new Set(assignments.map((a) => a.member_id));
+  const leadName = (client.deal_lead || "").trim().toLowerCase();
+  const projectMembers = members.filter(
+    (m) => assignedMemberIds.has(m.id) || (leadName && m.name.trim().toLowerCase() === leadName),
+  );
   const cl = client;
   const cur = getCurrentMonth();
 
@@ -455,7 +460,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
               <AddEntryForm
                 clientId={cl.id}
                 month={selectedMonth}
-                members={members}
+                members={projectMembers}
                 rates={rates}
                 onClose={() => setShowAddEntry(false)}
               />
@@ -529,9 +534,14 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                             onChange={(ev) => updateEntryField(e.id, "owner_id", ev.target.value, cl.id)}
                             style={{ ...selectStyle, width: "auto", padding: "3px 6px", fontSize: 13 }}
                           >
-                            {members.map((m) => (
-                              <option key={m.id} value={m.id}>{m.name}</option>
-                            ))}
+                            {(() => {
+                              const opts = projectMembers.some((m) => m.id === e.owner_id)
+                                ? projectMembers
+                                : [...projectMembers, members.find((m) => m.id === e.owner_id)!].filter(Boolean);
+                              return opts.map((m) => (
+                                <option key={m.id} value={m.id}>{m.name}</option>
+                              ));
+                            })()}
                           </select>
                         </td>
                         <td style={tdStyle}>
