@@ -978,7 +978,12 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
               </table>
 
               {showAddRate ? (
-                <AddRateForm clientId={cl.id} onClose={() => setShowAddRate(false)} />
+                <AddRateForm
+                  clientId={cl.id}
+                  existingRoles={Array.from(new Set(members.map((m) => m.role).filter(Boolean))).sort()}
+                  takenRoles={new Set(rates.filter((r) => r.client_id === cl.id).map((r) => r.role))}
+                  onClose={() => setShowAddRate(false)}
+                />
               ) : (
                 <button onClick={() => setShowAddRate(true)} style={{ ...btnStyle, marginTop: 12 }}>
                   + ADD RATE
@@ -1251,8 +1256,19 @@ function AddCostForm({
 
 // ─── Add Rate Form ───────────────────────────────────────────
 
-function AddRateForm({ clientId, onClose }: { clientId: string; onClose: () => void }) {
-  const [role, setRole] = useState("");
+function AddRateForm({
+  clientId,
+  existingRoles,
+  takenRoles,
+  onClose,
+}: {
+  clientId: string;
+  existingRoles: string[];
+  takenRoles: Set<string>;
+  onClose: () => void;
+}) {
+  const available = existingRoles.filter((r) => !takenRoles.has(r));
+  const [role, setRole] = useState(available[0] || "");
   const [rate, setRate] = useState("");
 
   async function handleSubmit() {
@@ -1261,11 +1277,24 @@ function AddRateForm({ clientId, onClose }: { clientId: string; onClose: () => v
     onClose();
   }
 
+  if (available.length === 0) {
+    return (
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12, fontSize: 12, color: "var(--s4)" }}>
+        All team roles already have a rate.
+        <button onClick={onClose} style={{ ...btnStyle, background: "var(--s2)", color: "var(--s4)" }}>CLOSE</button>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginTop: 12 }}>
       <div>
         <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Role</div>
-        <input style={{ ...inputStyle, width: 140 }} value={role} onChange={(e) => setRole(e.target.value)} />
+        <select style={{ ...selectStyle, width: 160 }} value={role} onChange={(e) => setRole(e.target.value)}>
+          {available.map((r) => (
+            <option key={r} value={r}>{r}</option>
+          ))}
+        </select>
       </div>
       <div>
         <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Rate</div>
