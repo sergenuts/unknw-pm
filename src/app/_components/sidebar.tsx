@@ -10,7 +10,7 @@ const NAV = [
   { href: "/settings", label: "SETTINGS", num: "003" },
 ];
 
-export function Sidebar() {
+export function Sidebar({ pendingCount = 0 }: { pendingCount?: number }) {
   const pathname = usePathname();
 
   if (pathname === "/login" || /^\/team\/[^/]+\/login$/.test(pathname || "")) {
@@ -95,6 +95,11 @@ export function Sidebar() {
                 {n.num}
               </span>
               {n.label}
+              {n.href === "/approvals" && pendingCount > 0 && (
+                <span style={{ marginLeft: 6, color: "var(--red, #f66)", fontWeight: 700 }}>
+                  ({pendingCount})
+                </span>
+              )}
             </Link>
           );
         })}

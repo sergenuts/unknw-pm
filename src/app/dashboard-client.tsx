@@ -76,7 +76,7 @@ export function DashboardClient({
             .reduce((s, e) => s + e.hours * (e.coeff || 1) * getRate(e.role), 0);
           const est = manualEst > 0 ? manualEst : autoEst;
           const pend = entries.filter(
-            (e) => e.client_id === cl.id && e.status === "submitted" && e.month === selectedMonth,
+            (e) => e.client_id === cl.id && (e.status === "submitted" || e.status === "pending"),
           ).length;
           return (
             <Link
@@ -96,7 +96,11 @@ export function DashboardClient({
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     <Badge type="active">active</Badge>
                     {cl.vat && <Badge type="planned">+VAT</Badge>}
-                    {pend > 0 && <Badge type="submitted">{pend} pending</Badge>}
+                    {pend > 0 && (
+                      <span style={{ color: "var(--red, #f66)", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", alignSelf: "center" }}>
+                        ({pend}) pending
+                      </span>
+                    )}
                   </div>
                   {cl.deal_lead && (
                     <div style={{ fontSize: 11, color: "var(--s4)", letterSpacing: "0.04em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
