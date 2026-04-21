@@ -198,7 +198,10 @@ export function MemberProjectClient({
         </h1>
         {member.type === "outsource" ? (
           <div style={{ fontSize: 12, color: "var(--yellow)", marginTop: 8 }}>
-            Your rate on this project: {assignmentCostRate != null ? `${fm(assignmentCostRate)}/h` : "not set"}
+            Your rate on this project: {ownRate > 0 ? `${fm(ownRate)}/h` : "not set"}
+            {assignmentCostRate == null && ownRate > 0 && (
+              <span style={{ color: "var(--s4)", marginLeft: 6 }}>(default)</span>
+            )}
           </div>
         ) : (
           <div style={{ fontSize: 12, color: "var(--s4)", marginTop: 8 }}>

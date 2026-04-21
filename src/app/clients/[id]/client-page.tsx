@@ -1538,7 +1538,7 @@ function AssignedMembers({
         <div style={{ marginBottom: 12 }}>
           {assignedMembers.map((m) => {
             const a = assignmentByMember.get(m.id);
-            const rate = a?.cost_rate ?? (m.type === "outsource" ? m.cost_rate : null);
+            const rate = a?.cost_rate ?? null;
             return (
             <div
               key={m.id}
