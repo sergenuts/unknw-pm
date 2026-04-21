@@ -5,6 +5,21 @@ import { approveEntry, rejectEntry, approveAllEntries, approveFixedCost, rejectF
 import type { Entry, TeamMember, Client, FixedCost, FixedItem } from "@/lib/types";
 import { formatMoney } from "@/lib/format";
 
+function timeAgo(iso: string): string {
+  const t = Date.parse(iso);
+  if (isNaN(t)) return "";
+  const diff = Date.now() - t;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const d = Math.floor(hr / 24);
+  if (d < 7) return `${d}d ago`;
+  const dt = new Date(t);
+  return dt.toLocaleDateString("en", { month: "short", day: "numeric" });
+}
+
 const thStyle: React.CSSProperties = {
   textAlign: "left",
   padding: "8px 12px",
@@ -49,6 +64,8 @@ export function ApprovalsClient({
   fixedItems: FixedItem[];
 }) {
   const totalPending = entries.length + fixedCosts.length;
+  const sortedEntries = [...entries].sort((a, b) => Date.parse(b.created_at || "") - Date.parse(a.created_at || ""));
+  const sortedFixed = [...fixedCosts].sort((a, b) => Date.parse(b.created_at || "") - Date.parse(a.created_at || ""));
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
@@ -106,6 +123,7 @@ export function ApprovalsClient({
             <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 32 }}>
               <thead>
                 <tr>
+                  <th style={thStyle}>Submitted</th>
                   <th style={thStyle}>Who</th>
                   <th style={thStyle}>Client</th>
                   <th style={thStyle}>Type</th>
@@ -115,12 +133,13 @@ export function ApprovalsClient({
                 </tr>
               </thead>
               <tbody>
-                {entries.map((e) => {
+                {sortedEntries.map((e) => {
                   const owner = members.find((m) => m.id === e.owner_id);
                   const client = clients.find((c) => c.id === e.client_id);
                   const t = e.entry_type === "hours_week" ? "hours/week" : "hours/task";
                   return (
                     <tr key={e.id}>
+                      <td style={{ ...tdStyle, color: "var(--s4)", fontSize: 11 }} title={e.created_at}>{timeAgo(e.created_at)}</td>
                       <td style={tdStyle}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           {owner && <Badge type={owner.type}>{owner.type}</Badge>}
@@ -152,6 +171,7 @@ export function ApprovalsClient({
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr>
+                    <th style={thStyle}>Submitted</th>
                     <th style={thStyle}>Who</th>
                     <th style={thStyle}>Client</th>
                     <th style={thStyle}>Fixed item</th>
@@ -161,12 +181,13 @@ export function ApprovalsClient({
                   </tr>
                 </thead>
                 <tbody>
-                  {fixedCosts.map((c) => {
+                  {sortedFixed.map((c) => {
                     const owner = c.member_id ? members.find((m) => m.id === c.member_id) : null;
                     const item = fixedItems.find((f) => f.id === c.fixed_item_id);
                     const client = item ? clients.find((cl) => cl.id === item.client_id) : null;
                     return (
                       <tr key={c.id}>
+                        <td style={{ ...tdStyle, color: "var(--s4)", fontSize: 11 }} title={c.created_at}>{timeAgo(c.created_at)}</td>
                         <td style={tdStyle}>
                           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                             {owner && <Badge type={owner.type}>{owner.type}</Badge>}

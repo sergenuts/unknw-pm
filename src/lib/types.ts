@@ -60,6 +60,7 @@ export interface Entry {
   entry_type: EntryType;
   amount: number;
   week_num: number | null;
+  created_at: string;
 }
 
 export interface FixedItem {
@@ -94,4 +95,5 @@ export interface FixedCost {
   member_id: string | null;
   hours: number | null;
   rate: number | null;
+  created_at: string;
 }

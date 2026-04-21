@@ -604,6 +604,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                 <tbody>
                   {mEntries.map((e, idx) => {
                     const amt = e.hours * (e.coeff || 1) * getRate(e.role);
+                    const isPending = e.status === "pending" || e.status === "submitted";
                     return (
                       <tr
                         key={e.id}
@@ -626,7 +627,12 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                           setDragIdx(null);
                         }}
                         onDragEnd={() => setDragIdx(null)}
-                        style={{ cursor: "grab", opacity: dragIdx === idx ? 0.4 : 1 }}
+                        style={{
+                          cursor: "grab",
+                          opacity: dragIdx === idx ? 0.4 : 1,
+                          background: isPending ? "rgba(138, 128, 255, 0.06)" : undefined,
+                          boxShadow: isPending ? "inset 2px 0 0 var(--purple)" : undefined,
+                        }}
                       >
                         <td style={{ ...tdStyle, cursor: "grab", color: "var(--s3)", width: 20, fontSize: 11, userSelect: "none" }}>⠿</td>
                         <td style={tdStyle}>
