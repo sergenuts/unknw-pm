@@ -316,7 +316,7 @@ export async function approveAllEntries() {
 
 export async function createTeamMember(data: {
   name: string;
-  type: "internal" | "outsource";
+  type: "internal" | "outsource" | "lead";
   role: string;
   email: string;
   cost_rate?: number;

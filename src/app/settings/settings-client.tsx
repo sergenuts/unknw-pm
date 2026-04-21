@@ -258,7 +258,10 @@ export function SettingsClient({
           </table>
 
           {showAddMember ? (
-            <AddMemberForm onClose={() => setShowAddMember(false)} />
+            <AddMemberForm
+              existingRoles={Array.from(new Set(members.map((m) => m.role).filter(Boolean))).sort()}
+              onClose={() => setShowAddMember(false)}
+            />
           ) : (
             <button onClick={() => setShowAddMember(true)} style={{ ...btnStyle, marginTop: 16 }}>
               + ADD MEMBER
@@ -367,12 +370,16 @@ export function SettingsClient({
 
 // ─── Add Member Form ─────────────────────────────────────────
 
-function AddMemberForm({ onClose }: { onClose: () => void }) {
+const NEW_ROLE = "__new__";
+
+function AddMemberForm({ existingRoles, onClose }: { existingRoles: string[]; onClose: () => void }) {
   const [name, setName] = useState("");
-  const [type, setType] = useState<"internal" | "outsource">("internal");
-  const [role, setRole] = useState("");
-  const [email, setEmail] = useState("");
+  const [type, setType] = useState<"internal" | "outsource" | "lead">("internal");
+  const [roleSelect, setRoleSelect] = useState<string>(existingRoles[0] || NEW_ROLE);
+  const [roleCustom, setRoleCustom] = useState("");
   const [costRate, setCostRate] = useState("");
+
+  const role = roleSelect === NEW_ROLE ? roleCustom.trim() : roleSelect;
 
   async function handleSubmit() {
     if (!name || !role) return;
@@ -380,7 +387,7 @@ function AddMemberForm({ onClose }: { onClose: () => void }) {
       name,
       type,
       role,
-      email,
+      email: "",
       ...(type === "outsource" && costRate ? { cost_rate: Number(costRate) } : {}),
     });
     onClose();
@@ -395,19 +402,27 @@ function AddMemberForm({ onClose }: { onClose: () => void }) {
         </div>
         <div>
           <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Type</div>
-          <select style={{ ...selectStyle, width: 120 }} value={type} onChange={(e) => setType(e.target.value as "internal" | "outsource")}>
+          <select style={{ ...selectStyle, width: 120 }} value={type} onChange={(e) => setType(e.target.value as typeof type)}>
             <option value="internal">internal</option>
             <option value="outsource">outsource</option>
+            <option value="lead">lead</option>
           </select>
         </div>
         <div>
           <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Role</div>
-          <input style={{ ...inputStyle, width: 120 }} value={role} onChange={(e) => setRole(e.target.value)} />
+          <select style={{ ...selectStyle, width: 140 }} value={roleSelect} onChange={(e) => setRoleSelect(e.target.value)}>
+            {existingRoles.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+            <option value={NEW_ROLE}>+ new role…</option>
+          </select>
         </div>
-        <div>
-          <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Email</div>
-          <input style={{ ...inputStyle, width: 160 }} value={email} onChange={(e) => setEmail(e.target.value)} />
-        </div>
+        {roleSelect === NEW_ROLE && (
+          <div>
+            <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>New role</div>
+            <input autoFocus style={{ ...inputStyle, width: 140 }} value={roleCustom} onChange={(e) => setRoleCustom(e.target.value)} />
+          </div>
+        )}
         {type === "outsource" && (
           <div>
             <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Cost Rate</div>
