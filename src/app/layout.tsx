@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import "./globals.css";
 import { Sidebar } from "./_components/sidebar";
 
@@ -7,7 +8,8 @@ export const metadata: Metadata = {
   description: "Project Manager",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const isAdmin = (await cookies()).get("admin_auth")?.value === "1";
   return (
     <html lang="en">
       <head>
@@ -17,8 +19,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body style={{ display: "flex", minHeight: "100vh", fontFamily: "'Inter', sans-serif" }}>
-        <Sidebar />
-        <main style={{ flex: 1, marginLeft: 200, padding: "32px 40px", minWidth: 0 }}>
+        {isAdmin && <Sidebar />}
+        <main style={{ flex: 1, marginLeft: isAdmin ? 200 : 0, padding: "32px 40px", minWidth: 0 }}>
           {children}
         </main>
       </body>
