@@ -335,6 +335,16 @@ export async function updateTeamMemberRate(id: string, costRate: number) {
   revalidatePath("/settings");
 }
 
+export async function updateTeamMemberType(id: string, type: "internal" | "outsource" | "lead") {
+  await supabase.from("team_members").update({ type }).eq("id", id);
+  revalidatePath("/settings");
+}
+
+export async function updateTeamMemberRole(id: string, role: string) {
+  await supabase.from("team_members").update({ role }).eq("id", id);
+  revalidatePath("/settings");
+}
+
 // ─── Outsource Months ────────────────────────────────────────
 
 export async function upsertOutsourceMonth(

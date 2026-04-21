@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/app/_components/badge";
 import { formatMoney } from "@/lib/format";
-import { createTeamMember, deleteTeamMember, createClient, toggleClientVat, updateTeamMemberRate, updateClientField, updateTeamMemberPassword } from "@/app/actions";
+import { createTeamMember, deleteTeamMember, createClient, toggleClientVat, updateTeamMemberRate, updateClientField, updateTeamMemberPassword, updateTeamMemberType, updateTeamMemberRole } from "@/app/actions";
 import type { TeamMember, Client, ClientRate } from "@/lib/types";
 
 const thStyle: React.CSSProperties = {
@@ -220,7 +220,9 @@ export function SettingsClient({
               </tr>
             </thead>
             <tbody>
-              {members.map((m) => (
+              {members.map((m) => {
+                const roleOpts = Array.from(new Set([m.role, ...members.map((x) => x.role)].filter(Boolean)));
+                return (
                 <tr key={m.id}>
                   <td style={tdStyle}>
                     <Link href={`/team/${m.id}`} style={{ color: "var(--fg)", textDecoration: "underline", textDecorationStyle: "dashed", textUnderlineOffset: 3 }}>
@@ -228,18 +230,34 @@ export function SettingsClient({
                     </Link>
                   </td>
                   <td style={tdStyle}>
-                    <Badge type={m.type}>{m.type}</Badge>
+                    <select
+                      value={m.type}
+                      onChange={(e) => updateTeamMemberType(m.id, e.target.value as "internal" | "outsource" | "lead")}
+                      style={{ ...inputStyle, width: 120, padding: "3px 6px", fontSize: 11, textTransform: "uppercase", cursor: "pointer" }}
+                    >
+                      <option value="internal">internal</option>
+                      <option value="outsource">outsource</option>
+                      <option value="lead">lead</option>
+                    </select>
                   </td>
-                  <td style={tdStyle}>{m.role}</td>
+                  <td style={tdStyle}>
+                    <select
+                      value={m.role}
+                      onChange={(e) => updateTeamMemberRole(m.id, e.target.value)}
+                      style={{ ...inputStyle, width: 140, padding: "3px 6px", fontSize: 13, cursor: "pointer" }}
+                    >
+                      {roleOpts.map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                  </td>
                   <td style={tdStyle}>
                     <EditablePassword value={m.password || ""} onSave={(v) => updateTeamMemberPassword(m.id, v)} />
                   </td>
                   <td style={{ ...tdStyle, textAlign: "right" }}>
                     {m.type === "outsource" ? (
                       <EditableRate value={m.cost_rate} onSave={(v) => updateTeamMemberRate(m.id, v)} />
-                    ) : (
-                      <span style={{ color: "var(--s3)" }}>—</span>
-                    )}
+                    ) : null}
                   </td>
                   <td style={{ ...tdStyle, width: 30 }}>
                     <button
@@ -254,7 +272,8 @@ export function SettingsClient({
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
 
