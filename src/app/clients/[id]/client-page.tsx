@@ -631,10 +631,17 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                           )}
                         </td>
                         <td style={tdStyle}>
-                          <EditableText
-                            value={e.task}
-                            onSave={(v) => updateEntryField(e.id, "task", v, cl.id)}
-                          />
+                          {(() => {
+                            const weekLabel = e.entry_type === "hours_week" ? weekDateLabel(selectedMonth, e.week_num) : "";
+                            const displayTask = e.entry_type === "hours_week" && e.task === weekLabel ? "" : e.task;
+                            return (
+                              <EditableText
+                                value={displayTask}
+                                placeholder={e.entry_type === "hours_week" ? "note (optional)" : ""}
+                                onSave={(v) => updateEntryField(e.id, "task", v || weekLabel, cl.id)}
+                              />
+                            );
+                          })()}
                         </td>
                         <td style={tdStyle}>
                           <select

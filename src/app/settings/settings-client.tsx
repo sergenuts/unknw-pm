@@ -146,7 +146,33 @@ function TypeSelect({
   );
 }
 
-function LeadToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+function LeadToggle({
+  value,
+  isAdmin,
+  onChange,
+}: {
+  value: boolean;
+  isAdmin?: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  if (isAdmin) {
+    return (
+      <span
+        style={{
+          background: "var(--purple-dim)",
+          color: "var(--purple)",
+          padding: "4px 10px",
+          fontSize: 10,
+          fontWeight: 600,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+        }}
+        title="Admins are always leads"
+      >
+        ★ admin
+      </span>
+    );
+  }
   return (
     <button
       onClick={() => onChange(!value)}
@@ -295,18 +321,22 @@ export function SettingsClient({
                     <TypeSelect value={m.type} onChange={(v) => updateTeamMemberType(m.id, v)} />
                   </td>
                   <td style={tdStyle}>
-                    <LeadToggle value={m.is_lead} onChange={(v) => updateTeamMemberIsLead(m.id, v)} />
+                    <LeadToggle value={m.is_lead} isAdmin={m.is_admin} onChange={(v) => updateTeamMemberIsLead(m.id, v)} />
                   </td>
                   <td style={tdStyle}>
-                    <select
-                      value={m.role}
-                      onChange={(e) => updateTeamMemberRole(m.id, e.target.value)}
-                      style={{ ...inputStyle, width: 160, padding: "3px 6px", fontSize: 13, cursor: "pointer" }}
-                    >
-                      {roleOpts.map((r) => (
-                        <option key={r} value={r}>{r}</option>
-                      ))}
-                    </select>
+                    {m.is_admin ? (
+                      <span style={{ color: "var(--s4)", fontSize: 12 }}>—</span>
+                    ) : (
+                      <select
+                        value={m.role}
+                        onChange={(e) => updateTeamMemberRole(m.id, e.target.value)}
+                        style={{ ...inputStyle, width: 160, padding: "3px 6px", fontSize: 13, cursor: "pointer" }}
+                      >
+                        {roleOpts.map((r) => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                      </select>
+                    )}
                   </td>
                   <td style={tdStyle}>
                     <EditablePassword value={m.password || ""} onSave={(v) => updateTeamMemberPassword(m.id, v)} />

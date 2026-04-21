@@ -299,11 +299,17 @@ export function MemberProjectClient({
                       )}
                     </td>
                     <td style={tdStyle}>
-                      <InlineEdit
-                        value={e.task}
-                        width={220}
-                        onSave={(v) => updateMemberEntryField(e.id, "task", v, member.id, client.id)}
-                      />
+                      {(() => {
+                        const wl = e.entry_type === "hours_week" ? weekDateLabel(selectedMonth, e.week_num) : "";
+                        const displayTask = e.entry_type === "hours_week" && e.task === wl ? "" : e.task;
+                        return (
+                          <InlineEdit
+                            value={displayTask}
+                            width={220}
+                            onSave={(v) => updateMemberEntryField(e.id, "task", v || wl, member.id, client.id)}
+                          />
+                        );
+                      })()}
                       <span style={{ color: r === 0 ? "var(--red)" : "var(--s4)", fontSize: 11, marginLeft: 8 }}>
                         · {e.role}{r === 0 ? " (no rate)" : ""}
                       </span>
