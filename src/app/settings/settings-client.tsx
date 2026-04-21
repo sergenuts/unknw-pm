@@ -213,9 +213,8 @@ export function SettingsClient({
                 <th style={thStyle}>Name</th>
                 <th style={thStyle}>Type</th>
                 <th style={thStyle}>Role</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Rate</th>
-                <th style={thStyle}>Email</th>
                 <th style={thStyle}>Password</th>
+                <th style={{ ...thStyle, textAlign: "right" }}>Rate</th>
                 <th style={thStyle}></th>
               </tr>
             </thead>
@@ -231,6 +230,9 @@ export function SettingsClient({
                     <Badge type={m.type}>{m.type}</Badge>
                   </td>
                   <td style={tdStyle}>{m.role}</td>
+                  <td style={tdStyle}>
+                    <EditablePassword value={m.password || ""} onSave={(v) => updateTeamMemberPassword(m.id, v)} />
+                  </td>
                   <td style={{ ...tdStyle, textAlign: "right" }}>
                     {m.type === "outsource" ? (
                       <EditableRate value={m.cost_rate} onSave={(v) => updateTeamMemberRate(m.id, v)} />
@@ -238,13 +240,13 @@ export function SettingsClient({
                       <span style={{ color: "var(--s3)" }}>—</span>
                     )}
                   </td>
-                  <td style={{ ...tdStyle, color: "var(--s4)" }}>{m.email || "—"}</td>
-                  <td style={tdStyle}>
-                    <EditablePassword value={m.password || ""} onSave={(v) => updateTeamMemberPassword(m.id, v)} />
-                  </td>
                   <td style={{ ...tdStyle, width: 30 }}>
                     <button
-                      onClick={() => deleteTeamMember(m.id)}
+                      onClick={() => {
+                        if (confirm(`Delete ${m.name}? This will fail if they have linked records.`)) {
+                          deleteTeamMember(m.id);
+                        }
+                      }}
                       style={{ background: "none", border: "none", color: "var(--s3)", cursor: "pointer", fontSize: 14 }}
                     >
                       ×

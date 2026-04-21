@@ -118,18 +118,30 @@ export async function deleteEntry(entryId: string, clientId: string) {
 export async function createEntry(data: {
   client_id: string;
   month: string;
-  date: string;
   task: string;
   owner_id: string;
   role: string;
   hours: number;
+  entry_type?: "hours_task" | "hours_week";
+  date?: string;
+  week_num?: number;
 }) {
   await supabase.from("entries").insert({
-    ...data,
+    client_id: data.client_id,
+    month: data.month,
+    task: data.task,
+    owner_id: data.owner_id,
+    role: data.role,
+    hours: data.hours,
+    entry_type: data.entry_type ?? "hours_task",
+    date: data.date ?? null,
+    week_num: data.week_num ?? null,
     coeff: 1,
     status: "in progress",
   });
   revalidatePath("/clients/" + data.client_id);
+  revalidatePath("/team/" + data.owner_id);
+  revalidatePath("/team/" + data.owner_id + "/" + data.client_id);
 }
 
 export async function createMemberEntry(data: {

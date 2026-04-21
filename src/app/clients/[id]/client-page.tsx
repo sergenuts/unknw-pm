@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/app/_components/badge";
 import { formatMoney, getCurrentMonth } from "@/lib/format";
+import { weeksInMonth } from "@/lib/weeks";
 import type { Client, Entry, FixedItem, FixedCost, ClientMonth, ClientRate, TeamMember, OutsourceMonth } from "@/lib/types";
 import {
   upsertClientMonth,
@@ -605,6 +606,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
             {showAddFixed && (
               <AddFixedForm
                 clientId={cl.id}
+                currency={cl.currency}
                 month={selectedMonth}
                 onClose={() => setShowAddFixed(false)}
               />
@@ -731,6 +733,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                       <AddCostForm
                         fixedItemId={item.id}
                         clientId={cl.id}
+                        currency={cl.currency}
                         members={members}
                         onClose={() => setShowAddCost(null)}
                       />
@@ -1059,32 +1062,79 @@ function AddEntryForm({
 }: {
   clientId: string; month: string; members: TeamMember[]; rates: ClientRate[]; onClose: () => void;
 }) {
+  const [mode, setMode] = useState<"date" | "week">("date");
   const [date, setDate] = useState(new Date().getDate().toString());
+  const weeks = weeksInMonth(month);
+  const [weekNum, setWeekNum] = useState(weeks[0]?.week || 0);
   const [task, setTask] = useState("");
-  const [ownerId, setOwnerId] = useState(members[0]?.id || "");
-  const [role, setRole] = useState(rates[0]?.role || "");
+  const firstMember = members[0];
+  const [ownerId, setOwnerId] = useState(firstMember?.id || "");
+  const [role, setRole] = useState(
+    (firstMember && rates.find((r) => r.role === firstMember.role)?.role) || firstMember?.role || rates[0]?.role || "",
+  );
   const [hours, setHours] = useState("");
+
+  function onOwnerChange(id: string) {
+    setOwnerId(id);
+    const m = members.find((x) => x.id === id);
+    if (m) {
+      const matched = rates.find((r) => r.role === m.role)?.role || m.role;
+      setRole(matched);
+    }
+  }
 
   async function handleSubmit() {
     if (!task || !ownerId || !role || !hours) return;
-    await createEntry({ client_id: clientId, month, date, task, owner_id: ownerId, role, hours: Number(hours) });
+    if (mode === "date") {
+      await createEntry({ client_id: clientId, month, task, owner_id: ownerId, role, hours: Number(hours), entry_type: "hours_task", date });
+    } else {
+      const label = weeks.find((w) => w.week === weekNum)?.label || `Week ${weekNum}`;
+      await createEntry({ client_id: clientId, month, task: task || label, owner_id: ownerId, role, hours: Number(hours), entry_type: "hours_week", week_num: weekNum });
+    }
     onClose();
   }
 
+  const roleOptions = Array.from(new Set([role, ...rates.map((r) => r.role), ...members.map((m) => m.role)].filter(Boolean)));
+
   return (
     <div style={{ ...panelStyle, marginTop: 16 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+        <button
+          onClick={() => setMode("date")}
+          style={{ ...btnStyle, fontSize: 10, padding: "4px 10px", background: mode === "date" ? "var(--accent)" : "var(--s2)", color: mode === "date" ? "#fff" : "var(--s4)" }}
+        >
+          By date
+        </button>
+        <button
+          onClick={() => setMode("week")}
+          style={{ ...btnStyle, fontSize: 10, padding: "4px 10px", background: mode === "week" ? "var(--accent)" : "var(--s2)", color: mode === "week" ? "#fff" : "var(--s4)" }}
+        >
+          By week
+        </button>
+      </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
-        <div>
-          <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Date</div>
-          <input style={{ ...inputStyle, width: 60 }} value={date} onChange={(e) => setDate(e.target.value)} />
-        </div>
+        {mode === "date" ? (
+          <div>
+            <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Day</div>
+            <input style={{ ...inputStyle, width: 60 }} value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+        ) : (
+          <div>
+            <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Week</div>
+            <select style={{ ...selectStyle, width: 200 }} value={weekNum} onChange={(e) => setWeekNum(Number(e.target.value))}>
+              {weeks.map((w) => (
+                <option key={w.week} value={w.week}>{w.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div style={{ flex: 1, minWidth: 150 }}>
           <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Task</div>
-          <input style={inputStyle} value={task} onChange={(e) => setTask(e.target.value)} />
+          <input style={inputStyle} value={task} onChange={(e) => setTask(e.target.value)} placeholder={mode === "week" ? "optional note" : ""} />
         </div>
         <div>
           <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Owner</div>
-          <select style={{ ...selectStyle, width: 130 }} value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
+          <select style={{ ...selectStyle, width: 150 }} value={ownerId} onChange={(e) => onOwnerChange(e.target.value)}>
             {members.map((m) => (
               <option key={m.id} value={m.id}>{m.name}</option>
             ))}
@@ -1092,9 +1142,9 @@ function AddEntryForm({
         </div>
         <div>
           <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Role</div>
-          <select style={{ ...selectStyle, width: 110 }} value={role} onChange={(e) => setRole(e.target.value)}>
-            {rates.map((r) => (
-              <option key={r.id} value={r.role}>{r.role}</option>
+          <select style={{ ...selectStyle, width: 120 }} value={role} onChange={(e) => setRole(e.target.value)}>
+            {roleOptions.map((r) => (
+              <option key={r} value={r}>{r}</option>
             ))}
           </select>
         </div>
@@ -1111,7 +1161,7 @@ function AddEntryForm({
 
 // ─── Add Fixed Item Form ─────────────────────────────────────
 
-function AddFixedForm({ clientId, month, onClose }: { clientId: string; month: string; onClose: () => void }) {
+function AddFixedForm({ clientId, currency, month, onClose }: { clientId: string; currency: Client["currency"]; month: string; onClose: () => void }) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [qty, setQty] = useState("1");
@@ -1138,7 +1188,7 @@ function AddFixedForm({ clientId, month, onClose }: { clientId: string; month: s
           <input style={{ ...inputStyle, width: 60 }} type="number" value={qty} onChange={(e) => setQty(e.target.value)} />
         </div>
         <div style={{ color: "var(--s4)", fontSize: 13, whiteSpace: "nowrap" }}>
-          = {formatMoney((Number(price) || 0) * (Number(qty) || 1), "GBP")}
+          = {formatMoney((Number(price) || 0) * (Number(qty) || 1), currency)}
         </div>
         <button onClick={handleSubmit} style={btnStyle}>CREATE</button>
         <button onClick={onClose} style={{ ...btnStyle, background: "var(--s2)", color: "var(--s4)" }}>CANCEL</button>
@@ -1150,9 +1200,9 @@ function AddFixedForm({ clientId, month, onClose }: { clientId: string; month: s
 // ─── Add Cost Form ───────────────────────────────────────────
 
 function AddCostForm({
-  fixedItemId, clientId, members, onClose,
+  fixedItemId, clientId, currency, members, onClose,
 }: {
-  fixedItemId: string; clientId: string; members: TeamMember[]; onClose: () => void;
+  fixedItemId: string; clientId: string; currency: Client["currency"]; members: TeamMember[]; onClose: () => void;
 }) {
   const [costType, setCostType] = useState<"outsourcer" | "direct">("outsourcer");
   const assignable = members;
@@ -1240,7 +1290,7 @@ function AddCostForm({
             <input style={{ ...inputStyle, width: 70 }} type="number" value={rate} onChange={(e) => setRate(e.target.value)} />
           </div>
           <div style={{ color: "var(--s4)", fontSize: 12, whiteSpace: "nowrap" }}>
-            = {formatMoney((Number(hours) || 0) * (Number(rate) || 0), "GBP")}
+            = {formatMoney((Number(hours) || 0) * (Number(rate) || 0), currency)}
           </div>
           <button onClick={handleSubmit} style={btnStyle}>ADD</button>
           <button onClick={onClose} style={{ ...btnStyle, background: "var(--s2)", color: "var(--s4)" }}>CANCEL</button>
