@@ -96,17 +96,34 @@ export function DashboardClient({
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     <Badge type="active">active</Badge>
                     {cl.vat && <Badge type="planned">+VAT</Badge>}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                    {cl.deal_lead && (
+                      <div style={{ fontSize: 11, color: "var(--s4)", letterSpacing: "0.04em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                        {cl.deal_lead}
+                      </div>
+                    )}
                     {pend > 0 && (
-                      <span style={{ color: "var(--red, #f66)", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", alignSelf: "center" }}>
-                        ({pend}) pending
+                      <span
+                        style={{
+                          minWidth: 22,
+                          height: 22,
+                          padding: "0 7px",
+                          borderRadius: 11,
+                          background: "var(--red, #f66)",
+                          color: "#fff",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          lineHeight: 1,
+                        }}
+                      >
+                        {pend}
                       </span>
                     )}
                   </div>
-                  {cl.deal_lead && (
-                    <div style={{ fontSize: 11, color: "var(--s4)", letterSpacing: "0.04em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
-                      {cl.deal_lead}
-                    </div>
-                  )}
                 </div>
                 <div
                   style={{

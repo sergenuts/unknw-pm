@@ -96,8 +96,24 @@ export function Sidebar({ pendingCount = 0 }: { pendingCount?: number }) {
               </span>
               {n.label}
               {n.href === "/approvals" && pendingCount > 0 && (
-                <span style={{ marginLeft: 6, color: "var(--red, #f66)", fontWeight: 700 }}>
-                  ({pendingCount})
+                <span
+                  style={{
+                    marginLeft: 8,
+                    minWidth: 18,
+                    height: 18,
+                    padding: "0 5px",
+                    borderRadius: 9,
+                    background: "var(--red, #f66)",
+                    color: "#fff",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    lineHeight: 1,
+                  }}
+                >
+                  {pendingCount}
                 </span>
               )}
             </Link>
