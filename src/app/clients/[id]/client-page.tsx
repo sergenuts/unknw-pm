@@ -18,6 +18,7 @@ import {
   deleteFixedCost,
   deleteFixedItem,
   createClientRate,
+  updateClientRate,
   updateFixedItemStatus,
   updateFixedCostStatus,
   updateFixedCostField,
@@ -1080,10 +1081,31 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                   </tr>
                 </thead>
                 <tbody>
-                  {rates.map((r) => (
+                  {rates.map((r) => {
+                    const takenRoles = new Set(rates.filter((x) => x.id !== r.id).map((x) => x.role));
+                    const roleOpts = Array.from(new Set([r.role, ...PROJECT_ROLES, ...members.map((m) => m.role).filter(Boolean)]))
+                      .filter((role) => role === r.role || !takenRoles.has(role));
+                    return (
                     <tr key={r.id}>
-                      <td style={tdStyle}>{r.role}</td>
-                      <td style={{ ...tdStyle, textAlign: "right" }}>{fm(r.rate)}/h</td>
+                      <td style={tdStyle}>
+                        <select
+                          value={r.role}
+                          onChange={(e) => updateClientRate(r.id, "role", e.target.value, cl.id)}
+                          style={{ ...selectStyle, width: "auto", padding: "3px 6px", fontSize: 13 }}
+                        >
+                          {roleOpts.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: "right" }}>
+                        <EditableValue
+                          value={r.rate}
+                          size={13}
+                          format={(v) => fm(v) + "/h"}
+                          onSave={(v) => updateClientRate(r.id, "rate", v, cl.id)}
+                        />
+                      </td>
                       <td style={{ ...tdStyle, width: 30 }}>
                         <DeleteBtn
                           confirmMsg={`Delete rate for ${r.role}?`}
@@ -1091,7 +1113,8 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                         />
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
 

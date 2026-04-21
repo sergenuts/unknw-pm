@@ -320,6 +320,17 @@ export async function createClientRate(clientId: string, role: string, rate: num
   revalidatePath("/settings");
 }
 
+export async function updateClientRate(
+  rateId: string,
+  field: "role" | "rate",
+  value: string | number,
+  clientId: string
+) {
+  await supabase.from("client_rates").update({ [field]: value }).eq("id", rateId);
+  revalidatePath("/clients/" + clientId);
+  revalidatePath("/settings");
+}
+
 export async function deleteClientRate(rateId: string, clientId: string) {
   await supabase.from("client_rates").delete().eq("id", rateId);
   revalidatePath("/clients/" + clientId);
