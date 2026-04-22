@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { Client, Entry, TeamMember, ClientRate, FixedItem, FixedCost } from "@/lib/types";
 import { formatMoney } from "@/lib/format";
 import { weeksInMonth, weekDateLabel } from "@/lib/weeks";
-import { createMemberEntry, deleteMemberEntry, createFixedCost, deleteFixedCost, updateMemberEntryField, updateFixedCostField } from "@/app/actions";
+import { createMemberEntry, deleteMemberEntry, createFixedCost, deleteFixedCost, updateMemberEntryField, updateMemberFixedCostField } from "@/app/actions";
 
 function DeleteBtn({
   onConfirm,
@@ -45,16 +45,21 @@ function InlineEdit({
   width,
   align = "left",
   type = "text",
+  readOnly = false,
 }: {
   value: string | number;
   onSave: (v: string) => Promise<void> | void;
   width?: number;
   align?: "left" | "right";
   type?: "text" | "number";
+  readOnly?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(String(value ?? ""));
   const [pending, startTransition] = useTransition();
+  if (readOnly) {
+    return <span style={{ color: "var(--fg)" }}>{value || "—"}</span>;
+  }
   if (!editing) {
     return (
       <span
@@ -305,8 +310,9 @@ export function MemberProjectClient({
                 const r = rateFor(e.role);
                 const amt = (e.hours || 0) * r;
                 const typeLabel = e.entry_type === "hours_week" ? "hours/week" : "hours/task";
+                const editable = e.status === "pending" || e.status === "submitted" || e.status === "in progress";
                 return (
-                  <tr key={e.id}>
+                  <tr key={e.id} style={{ background: editable ? "rgba(138, 128, 255, 0.06)" : undefined }}>
                     <td style={{ ...tdStyle, color: "var(--s4)", fontSize: 11, textTransform: "uppercase" }}>{typeLabel}</td>
                     <td style={tdStyle}>
                       {e.entry_type === "hours_week" ? (
@@ -315,6 +321,7 @@ export function MemberProjectClient({
                         <InlineEdit
                           value={e.date || ""}
                           width={60}
+                          readOnly={!editable}
                           onSave={(v) => updateMemberEntryField(e.id, "date", v, member.id, client.id)}
                         />
                       )}
@@ -327,6 +334,7 @@ export function MemberProjectClient({
                           <InlineEdit
                             value={displayTask}
                             width={220}
+                            readOnly={!editable}
                             onSave={(v) => updateMemberEntryField(e.id, "task", v || wl, member.id, client.id)}
                           />
                         );
@@ -343,24 +351,28 @@ export function MemberProjectClient({
                         type="number"
                         width={70}
                         align="right"
+                        readOnly={!editable}
                         onSave={(v) => updateMemberEntryField(e.id, "hours", Number(v), member.id, client.id)}
                       />
                     </td>
                     <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>{fm(amt)}</td>
-                    <td style={{ ...tdStyle, color: "var(--s4)" }}>{e.status}</td>
+                    <td style={{ ...tdStyle, color: "var(--s4)" }}>{e.status}{!editable && " 🔒"}</td>
                     <td style={tdStyle}>
-                      <DeleteBtn
-                        confirmMsg={`Delete entry "${e.task}"?`}
-                        onConfirm={() => deleteMemberEntry(e.id, member.id, client.id)}
-                      />
+                      {editable && (
+                        <DeleteBtn
+                          confirmMsg={`Delete entry "${e.task}"?`}
+                          onConfirm={() => deleteMemberEntry(e.id, member.id, client.id)}
+                        />
+                      )}
                     </td>
                   </tr>
                 );
               })}
               {mFixedCosts.map((c) => {
                 const item = mFixedItems.find((f) => f.id === c.fixed_item_id);
+                const editable = c.status === "pending";
                 return (
-                  <tr key={c.id}>
+                  <tr key={c.id} style={{ background: editable ? "rgba(138, 128, 255, 0.06)" : undefined }}>
                     <td style={{ ...tdStyle, color: "var(--s4)", fontSize: 11, textTransform: "uppercase" }}>fixed</td>
                     <td style={tdStyle}>—</td>
                     <td style={tdStyle}>
@@ -369,7 +381,8 @@ export function MemberProjectClient({
                       <InlineEdit
                         value={c.description}
                         width={200}
-                        onSave={(v) => updateFixedCostField(c.id, "description", v, client.id)}
+                        readOnly={!editable}
+                        onSave={(v) => updateMemberFixedCostField(c.id, "description", v, member.id, client.id)}
                       />
                     </td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>—</td>
@@ -379,15 +392,18 @@ export function MemberProjectClient({
                         type="number"
                         width={90}
                         align="right"
-                        onSave={(v) => updateFixedCostField(c.id, "amount", Number(v), client.id)}
+                        readOnly={!editable}
+                        onSave={(v) => updateMemberFixedCostField(c.id, "amount", Number(v), member.id, client.id)}
                       />
                     </td>
-                    <td style={{ ...tdStyle, color: "var(--s4)" }}>{c.status}</td>
+                    <td style={{ ...tdStyle, color: "var(--s4)" }}>{c.status}{!editable && " 🔒"}</td>
                     <td style={tdStyle}>
-                      <DeleteBtn
-                        confirmMsg={`Delete cost "${c.description}"?`}
-                        onConfirm={() => deleteFixedCost(c.id, client.id)}
-                      />
+                      {editable && (
+                        <DeleteBtn
+                          confirmMsg={`Delete cost "${c.description}"?`}
+                          onConfirm={() => deleteFixedCost(c.id, client.id)}
+                        />
+                      )}
                     </td>
                   </tr>
                 );

@@ -187,6 +187,15 @@ export async function rejectFixedCost(costId: string) {
 }
 
 export async function deleteMemberEntry(entryId: string, memberId: string, clientId: string) {
+  const { data: existing } = await supabase
+    .from("entries")
+    .select("status, owner_id")
+    .eq("id", entryId)
+    .single();
+  if (!existing || existing.owner_id !== memberId) return { error: "Not your entry" };
+  if (!["pending", "submitted", "in progress"].includes(existing.status)) {
+    return { error: "Locked — already reviewed" };
+  }
   await supabase.from("entries").delete().eq("id", entryId);
   revalidatePath("/clients/" + clientId);
   revalidatePath("/team/" + memberId);
@@ -270,7 +279,36 @@ export async function updateMemberEntryField(
   memberId: string,
   clientId: string
 ) {
+  const { data: existing } = await supabase
+    .from("entries")
+    .select("status, owner_id")
+    .eq("id", entryId)
+    .single();
+  if (!existing || existing.owner_id !== memberId) return { error: "Not your entry" };
+  if (!["pending", "submitted", "in progress"].includes(existing.status)) {
+    return { error: "Locked — already reviewed" };
+  }
   await supabase.from("entries").update({ [field]: value }).eq("id", entryId);
+  revalidatePath("/clients/" + clientId);
+  revalidatePath("/team/" + memberId);
+  revalidatePath("/team/" + memberId + "/" + clientId);
+}
+
+export async function updateMemberFixedCostField(
+  costId: string,
+  field: "description" | "amount",
+  value: string | number,
+  memberId: string,
+  clientId: string
+) {
+  const { data: existing } = await supabase
+    .from("fixed_costs")
+    .select("status, member_id")
+    .eq("id", costId)
+    .single();
+  if (!existing || existing.member_id !== memberId) return { error: "Not your cost" };
+  if (existing.status !== "pending") return { error: "Locked — already reviewed" };
+  await supabase.from("fixed_costs").update({ [field]: value }).eq("id", costId);
   revalidatePath("/clients/" + clientId);
   revalidatePath("/team/" + memberId);
   revalidatePath("/team/" + memberId + "/" + clientId);
