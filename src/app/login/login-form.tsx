@@ -28,7 +28,7 @@ const btnStyle: React.CSSProperties = {
 };
 
 export function LoginForm() {
-  const [email, setEmail] = useState("");
+  const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -37,7 +37,7 @@ export function LoginForm() {
     e.preventDefault();
     setBusy(true);
     setError("");
-    const res = await loginAdmin(email, password);
+    const res = await loginAdmin(login, password);
     setBusy(false);
     if (res?.error) setError(res.error);
   }
@@ -85,8 +85,8 @@ export function LoginForm() {
         </div>
 
         <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>Email</div>
-          <input autoFocus style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>Email or name</div>
+          <input autoFocus style={inputStyle} type="text" value={login} onChange={(e) => setLogin(e.target.value)} />
         </div>
         <div style={{ marginBottom: 8 }}>
           <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>Password</div>

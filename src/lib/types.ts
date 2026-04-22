@@ -9,6 +9,7 @@ export interface TeamMember {
   created_by: string | null;
   password: string | null;
   is_admin: boolean;
+  is_viewer: boolean;
 }
 
 export const PROJECT_ROLES = [
@@ -27,6 +28,7 @@ export interface Client {
   vat_rate: number;
   deal_lead: string | null;
   status: string;
+  report_token: string;
 }
 
 export interface ClientRate {

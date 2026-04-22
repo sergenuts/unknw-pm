@@ -10,7 +10,7 @@ const NAV = [
   { href: "/settings", label: "SETTINGS", num: "003" },
 ];
 
-export function Sidebar({ pendingCount = 0 }: { pendingCount?: number }) {
+export function Sidebar({ pendingCount = 0, role = "admin" }: { pendingCount?: number; role?: "admin" | "viewer" }) {
   const pathname = usePathname();
 
   if (pathname === "/login" || /^\/team\/[^/]+\/login$/.test(pathname || "")) {
@@ -133,7 +133,9 @@ export function Sidebar({ pendingCount = 0 }: { pendingCount?: number }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span>
             AS{" "}
-            <span style={{ color: "var(--accent)", fontWeight: 600 }}>SERGE</span>
+            <span style={{ color: role === "viewer" ? "var(--purple)" : "var(--accent)", fontWeight: 600 }}>
+              {role === "viewer" ? "VIEWER" : "SERGE"}
+            </span>
           </span>
           <button
             onClick={() => logout()}

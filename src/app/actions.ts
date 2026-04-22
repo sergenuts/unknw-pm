@@ -1,24 +1,37 @@
 "use server";
 
 import { supabase } from "@/lib/supabase";
+import { assertNotViewer } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 // ─── Auth ────────────────────────────────────────────────────
 
-export async function loginAdmin(email: string, password: string): Promise<{ error?: string }> {
-  const { data } = await supabase
+export async function loginAdmin(login: string, password: string): Promise<{ error?: string }> {
+  const q = login.trim().toLowerCase();
+  if (!q) return { error: "Enter email or name" };
+  const { data: candidates } = await supabase
     .from("team_members")
-    .select("id, password, is_admin")
-    .eq("email", email.trim().toLowerCase())
-    .single();
-  if (!data || !data.password || data.password !== password) {
+    .select("id, name, email, password, is_admin, is_viewer")
+    .or(`email.eq.${q},name.ilike.${q}`);
+  const data = (candidates || []).find(
+    (m) => m.password && m.password === password,
+  );
+  if (!data) {
     return { error: "Invalid credentials" };
   }
   const jar = await cookies();
   if (data.is_admin) {
     jar.set("admin_auth", "1", {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+    redirect("/");
+  } else if (data.is_viewer) {
+    jar.set("admin_auth", "viewer", {
       httpOnly: true,
       sameSite: "lax",
       path: "/",
@@ -63,6 +76,7 @@ export async function logout() {
 }
 
 export async function updateTeamMemberPassword(id: string, password: string) {
+  await assertNotViewer();
   await supabase.from("team_members").update({ password: password || null }).eq("id", id);
   revalidatePath("/settings");
 }
@@ -75,6 +89,7 @@ export async function upsertClientMonth(
   field: "estimate" | "paid",
   value: number
 ) {
+  await assertNotViewer();
   const { data: existing } = await supabase
     .from("client_months")
     .select("id")
@@ -105,12 +120,14 @@ export async function updateEntryField(
   value: string | number,
   clientId: string
 ) {
+  await assertNotViewer();
   await supabase.from("entries").update({ [field]: value }).eq("id", entryId);
   revalidatePath("/clients/" + clientId);
   if (field === "status") revalidatePath("/approvals");
 }
 
 export async function deleteEntry(entryId: string, clientId: string) {
+  await assertNotViewer();
   await supabase.from("entries").delete().eq("id", entryId);
   revalidatePath("/clients/" + clientId);
 }
@@ -126,6 +143,7 @@ export async function createEntry(data: {
   date?: string;
   week_num?: number;
 }) {
+  await assertNotViewer();
   await supabase.from("entries").insert({
     client_id: data.client_id,
     month: data.month,
@@ -156,6 +174,7 @@ export async function createMemberEntry(data: {
   amount?: number;
   week_num?: number;
 }) {
+  await assertNotViewer();
   await supabase.from("entries").insert({
     client_id: data.client_id,
     month: data.month,
@@ -177,16 +196,19 @@ export async function createMemberEntry(data: {
 }
 
 export async function approveFixedCost(costId: string) {
+  await assertNotViewer();
   await supabase.from("fixed_costs").update({ status: "planned" }).eq("id", costId);
   revalidatePath("/approvals");
 }
 
 export async function rejectFixedCost(costId: string) {
+  await assertNotViewer();
   await supabase.from("fixed_costs").delete().eq("id", costId);
   revalidatePath("/approvals");
 }
 
 export async function deleteMemberEntry(entryId: string, memberId: string, clientId: string) {
+  await assertNotViewer();
   const { data: existing } = await supabase
     .from("entries")
     .select("status, owner_id")
@@ -211,6 +233,7 @@ export async function createFixedItem(data: {
   price: number;
   qty: number;
 }) {
+  await assertNotViewer();
   await supabase.from("fixed_items").insert({
     ...data,
     total: data.price * data.qty,
@@ -221,11 +244,13 @@ export async function createFixedItem(data: {
 }
 
 export async function updateFixedItemPaid(itemId: string, paid: number, clientId: string) {
+  await assertNotViewer();
   await supabase.from("fixed_items").update({ paid }).eq("id", itemId);
   revalidatePath("/clients/" + clientId);
 }
 
 export async function updateFixedItemStatus(itemId: string, status: string, clientId: string) {
+  await assertNotViewer();
   await supabase.from("fixed_items").update({ status }).eq("id", itemId);
   revalidatePath("/clients/" + clientId);
 }
@@ -243,6 +268,7 @@ export async function createFixedCost(data: {
   rate?: number;
   clientId: string;
 }) {
+  await assertNotViewer();
   const { clientId, ...rest } = data;
   await supabase.from("fixed_costs").insert(rest);
   revalidatePath("/clients/" + clientId);
@@ -259,6 +285,7 @@ export async function updateFixedCostField(
   value: string | number,
   clientId: string
 ) {
+  await assertNotViewer();
   const { data: cost } = await supabase
     .from("fixed_costs")
     .select("member_id")
@@ -279,6 +306,7 @@ export async function updateMemberEntryField(
   memberId: string,
   clientId: string
 ) {
+  await assertNotViewer();
   const { data: existing } = await supabase
     .from("entries")
     .select("status, owner_id")
@@ -301,6 +329,7 @@ export async function updateMemberFixedCostField(
   memberId: string,
   clientId: string
 ) {
+  await assertNotViewer();
   const { data: existing } = await supabase
     .from("fixed_costs")
     .select("status, member_id")
@@ -315,6 +344,7 @@ export async function updateMemberFixedCostField(
 }
 
 export async function updateFixedCostStatus(costId: string, status: string, clientId: string) {
+  await assertNotViewer();
   const { data: cost } = await supabase
     .from("fixed_costs")
     .select("member_id")
@@ -330,6 +360,7 @@ export async function updateFixedCostStatus(costId: string, status: string, clie
 }
 
 export async function deleteFixedCost(costId: string, clientId: string) {
+  await assertNotViewer();
   const { data: cost } = await supabase
     .from("fixed_costs")
     .select("member_id")
@@ -345,6 +376,7 @@ export async function deleteFixedCost(costId: string, clientId: string) {
 }
 
 export async function deleteFixedItem(itemId: string, clientId: string) {
+  await assertNotViewer();
   await supabase.from("fixed_costs").delete().eq("fixed_item_id", itemId);
   await supabase.from("fixed_items").delete().eq("id", itemId);
   revalidatePath("/clients/" + clientId);
@@ -353,6 +385,7 @@ export async function deleteFixedItem(itemId: string, clientId: string) {
 // ─── Client Rates ────────────────────────────────────────────
 
 export async function createClientRate(clientId: string, role: string, rate: number) {
+  await assertNotViewer();
   await supabase.from("client_rates").insert({ client_id: clientId, role, rate });
   revalidatePath("/clients/" + clientId);
   revalidatePath("/settings");
@@ -364,12 +397,14 @@ export async function updateClientRate(
   value: string | number,
   clientId: string
 ) {
+  await assertNotViewer();
   await supabase.from("client_rates").update({ [field]: value }).eq("id", rateId);
   revalidatePath("/clients/" + clientId);
   revalidatePath("/settings");
 }
 
 export async function deleteClientRate(rateId: string, clientId: string) {
+  await assertNotViewer();
   await supabase.from("client_rates").delete().eq("id", rateId);
   revalidatePath("/clients/" + clientId);
   revalidatePath("/settings");
@@ -378,6 +413,7 @@ export async function deleteClientRate(rateId: string, clientId: string) {
 // ─── Team Assignments ────────────────────────────────────────
 
 export async function assignTeamMember(memberId: string, clientId: string, costRate?: number) {
+  await assertNotViewer();
   await supabase.from("team_assignments").insert({
     member_id: memberId,
     client_id: clientId,
@@ -389,6 +425,7 @@ export async function assignTeamMember(memberId: string, clientId: string, costR
 }
 
 export async function updateAssignmentRate(assignmentId: string, costRate: number, clientId: string, memberId: string) {
+  await assertNotViewer();
   await supabase.from("team_assignments").update({ cost_rate: costRate }).eq("id", assignmentId);
   revalidatePath("/clients/" + clientId);
   revalidatePath("/team/" + memberId);
@@ -396,6 +433,7 @@ export async function updateAssignmentRate(assignmentId: string, costRate: numbe
 }
 
 export async function unassignTeamMember(memberId: string, clientId: string) {
+  await assertNotViewer();
   await supabase
     .from("team_assignments")
     .delete()
@@ -407,16 +445,19 @@ export async function unassignTeamMember(memberId: string, clientId: string) {
 // ─── Approvals ───────────────────────────────────────────────
 
 export async function approveEntry(entryId: string) {
+  await assertNotViewer();
   await supabase.from("entries").update({ status: "done" }).eq("id", entryId);
   revalidatePath("/approvals");
 }
 
 export async function rejectEntry(entryId: string) {
+  await assertNotViewer();
   await supabase.from("entries").update({ status: "rejected" }).eq("id", entryId);
   revalidatePath("/approvals");
 }
 
 export async function approveAllEntries() {
+  await assertNotViewer();
   await supabase.from("entries").update({ status: "done" }).in("status", ["submitted", "pending"]);
   revalidatePath("/approvals");
 }
@@ -431,6 +472,7 @@ export async function createTeamMember(data: {
   is_lead?: boolean;
   cost_rate?: number;
 }) {
+  await assertNotViewer();
   await supabase.from("team_members").insert(data);
   revalidatePath("/settings");
 }
@@ -456,21 +498,31 @@ export async function deleteTeamMember(id: string): Promise<{ error?: string }> 
 }
 
 export async function updateTeamMemberRate(id: string, costRate: number) {
+  await assertNotViewer();
   await supabase.from("team_members").update({ cost_rate: costRate }).eq("id", id);
   revalidatePath("/settings");
 }
 
 export async function updateTeamMemberType(id: string, type: "internal" | "outsource") {
+  await assertNotViewer();
   await supabase.from("team_members").update({ type }).eq("id", id);
   revalidatePath("/settings");
 }
 
 export async function updateTeamMemberRole(id: string, role: string) {
+  await assertNotViewer();
   await supabase.from("team_members").update({ role }).eq("id", id);
   revalidatePath("/settings");
 }
 
+export async function updateTeamMemberIsViewer(id: string, isViewer: boolean) {
+  await assertNotViewer();
+  await supabase.from("team_members").update({ is_viewer: isViewer }).eq("id", id);
+  revalidatePath("/settings");
+}
+
 export async function updateTeamMemberIsLead(id: string, isLead: boolean) {
+  await assertNotViewer();
   await supabase.from("team_members").update({ is_lead: isLead }).eq("id", id);
   revalidatePath("/settings");
 }
@@ -484,6 +536,7 @@ export async function upsertOutsourceMonth(
   field: "rate_override" | "paid" | "status",
   value: number | string
 ) {
+  await assertNotViewer();
   const { data: existing } = await supabase
     .from("outsource_months")
     .select("id")
@@ -517,18 +570,28 @@ export async function createClient(data: {
   vat_rate: number;
   deal_lead: string;
 }) {
+  await assertNotViewer();
   await supabase.from("clients").insert(data);
   revalidatePath("/settings");
   revalidatePath("/");
 }
 
 export async function toggleClientVat(clientId: string, vat: boolean) {
+  await assertNotViewer();
   await supabase.from("clients").update({ vat }).eq("id", clientId);
   revalidatePath("/settings");
   revalidatePath("/clients/" + clientId);
 }
 
+export async function regenerateReportToken(clientId: string): Promise<{ token: string }> {
+  const token = (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
+  await supabase.from("clients").update({ report_token: token }).eq("id", clientId);
+  revalidatePath("/clients/" + clientId);
+  return { token };
+}
+
 export async function updateClientField(clientId: string, field: "currency" | "deal_lead", value: string) {
+  await assertNotViewer();
   await supabase.from("clients").update({ [field]: value }).eq("id", clientId);
   revalidatePath("/settings");
   revalidatePath("/clients/" + clientId);

@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/app/_components/badge";
 import { formatMoney } from "@/lib/format";
-import { createTeamMember, deleteTeamMember, createClient, toggleClientVat, updateTeamMemberRate, updateClientField, updateTeamMemberPassword, updateTeamMemberType, updateTeamMemberRole, updateTeamMemberIsLead } from "@/app/actions";
+import { createTeamMember, deleteTeamMember, createClient, toggleClientVat, updateTeamMemberRate, updateClientField, updateTeamMemberPassword, updateTeamMemberType, updateTeamMemberRole, updateTeamMemberIsLead, updateTeamMemberIsViewer } from "@/app/actions";
 import type { TeamMember, Client, ClientRate } from "@/lib/types";
 import { PROJECT_ROLES } from "@/lib/types";
 
@@ -76,7 +76,7 @@ function EditableRate({ value, onSave }: { value: number; onSave: (v: number) =>
   }
   return (
     <span
-      onClick={() => { setVal(String(value)); setEditing(true); }}
+      onClick={() => { if (typeof document !== "undefined" && document.body.classList.contains("viewer")) return; setVal(String(value)); setEditing(true); }}
       style={{ cursor: "pointer", borderBottom: "1px dashed var(--s3)", fontSize: 13, color: "var(--yellow)" }}
     >
       ${value}/h
@@ -102,7 +102,7 @@ function EditablePassword({ value, onSave }: { value: string; onSave: (v: string
   }
   return (
     <span
-      onClick={() => { setVal(value); setEditing(true); }}
+      onClick={() => { if (typeof document !== "undefined" && document.body.classList.contains("viewer")) return; setVal(value); setEditing(true); }}
       style={{ cursor: "pointer", borderBottom: "1px dashed var(--s3)", fontSize: 13, color: value ? "var(--fg)" : "var(--s4)", fontFamily: "monospace" }}
     >
       {value ? "•".repeat(Math.min(value.length, 10)) : "set password"}
@@ -273,6 +273,7 @@ export function SettingsClient({
         {tabs.map((t) => (
           <button
             key={t.key}
+            className="safe"
             onClick={() => setTab(t.key)}
             style={{
               padding: "8px 0",
@@ -301,6 +302,7 @@ export function SettingsClient({
                 <th style={thStyle}>Name</th>
                 <th style={thStyle}>Type</th>
                 <th style={thStyle}>Lead</th>
+                <th style={thStyle}>Viewer</th>
                 <th style={thStyle}>Role</th>
                 <th style={thStyle}>Password</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Rate</th>
@@ -322,6 +324,28 @@ export function SettingsClient({
                   </td>
                   <td style={tdStyle}>
                     <LeadToggle value={m.is_lead} isAdmin={m.is_admin} onChange={(v) => updateTeamMemberIsLead(m.id, v)} />
+                  </td>
+                  <td style={tdStyle}>
+                    {m.is_admin ? (
+                      <span style={{ color: "var(--s4)", fontSize: 12 }}>—</span>
+                    ) : (
+                      <button
+                        onClick={() => updateTeamMemberIsViewer(m.id, !m.is_viewer)}
+                        style={{
+                          background: m.is_viewer ? "var(--purple-dim)" : "var(--s2)",
+                          color: m.is_viewer ? "var(--purple)" : "var(--s4)",
+                          border: "none",
+                          padding: "4px 10px",
+                          fontSize: 10,
+                          fontWeight: 600,
+                          letterSpacing: "0.08em",
+                          textTransform: "uppercase",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {m.is_viewer ? "viewer" : "—"}
+                      </button>
+                    )}
                   </td>
                   <td style={tdStyle}>
                     {m.is_admin ? (

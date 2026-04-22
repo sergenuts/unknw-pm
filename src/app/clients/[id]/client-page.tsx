@@ -19,6 +19,7 @@ import {
   deleteFixedItem,
   createClientRate,
   updateClientRate,
+  regenerateReportToken,
   updateFixedItemStatus,
   updateFixedCostStatus,
   updateFixedCostField,
@@ -173,6 +174,7 @@ function EditableText({
   return (
     <span
       onClick={() => {
+        if (typeof document !== "undefined" && document.body.classList.contains("viewer")) return;
         setVal(value);
         setEditing(true);
       }}
@@ -230,6 +232,7 @@ function EditableValue({
   return (
     <span
       onClick={() => {
+        if (typeof document !== "undefined" && document.body.classList.contains("viewer")) return;
         setVal(String(value));
         setEditing(true);
       }}
@@ -465,7 +468,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
             {cl.deal_lead} · {cl.currency} · {ratesStr}
           </div>
         </div>
-        <button style={btnStyle}>EXPORT</button>
+        <ShareReportButton client={client} selectedMonth={selectedMonth} allMonths={allMonths} />
       </div>
 
       {/* Month tabs */}
@@ -473,6 +476,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
         {allMonths.map((m) => (
           <button
             key={m}
+            className="safe"
             onClick={() => setSelectedMonth(m)}
             style={{
               padding: "7px 16px",
@@ -497,6 +501,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
         {contentTabs.map((t) => (
           <button
             key={t.key}
+            className="safe"
             onClick={() => setContentTab(t.key)}
             style={{
               padding: "8px 0",
@@ -1627,5 +1632,147 @@ function AssignedMembers({
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Share Report ────────────────────────────────────────────
+
+function ShareReportButton({
+  client, selectedMonth, allMonths,
+}: { client: Client; selectedMonth: string; allMonths: string[] }) {
+  const [open, setOpen] = useState(false);
+  const [token, setToken] = useState(client.report_token);
+  const [scope, setScope] = useState<"month" | "all">("month");
+  const [pickedMonth, setPickedMonth] = useState(selectedMonth);
+  const [variant, setVariant] = useState<"full" | "short">("full");
+  const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const qs: string[] = [];
+  if (scope === "month") qs.push(`m=${encodeURIComponent(pickedMonth)}`);
+  if (variant === "short") qs.push("v=short");
+  const url = `${origin}/r/${token}${qs.length ? "?" + qs.join("&") : ""}`;
+
+  return (
+    <>
+      <button className="safe" style={btnStyle} onClick={() => setOpen(true)}>SHARE REPORT</button>
+      {open && (
+        <div
+          onClick={() => setOpen(false)}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 520, background: "var(--s1)", border: "1px solid var(--s2)", padding: 24,
+            }}
+          >
+            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", color: "var(--s3)", textTransform: "uppercase", marginBottom: 8 }}>
+              Share client report
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 800, textTransform: "uppercase", marginBottom: 16 }}>
+              {client.name}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--s4)", marginBottom: 16 }}>
+              Anyone with this link can view a read-only report. No login needed. Regenerate to invalidate previous links.
+            </div>
+
+            <div style={{ fontSize: 10, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Scope</div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <button
+                className="safe"
+                onClick={() => setScope("month")}
+                style={{ ...btnStyle, fontSize: 10, padding: "4px 10px", background: scope === "month" ? "var(--accent)" : "var(--s2)", color: scope === "month" ? "#fff" : "var(--s4)" }}
+              >
+                Single month
+              </button>
+              <button
+                className="safe"
+                onClick={() => setScope("all")}
+                style={{ ...btnStyle, fontSize: 10, padding: "4px 10px", background: scope === "all" ? "var(--accent)" : "var(--s2)", color: scope === "all" ? "#fff" : "var(--s4)" }}
+              >
+                All months
+              </button>
+              {scope === "month" && (
+                <select
+                  className="safe"
+                  value={pickedMonth}
+                  onChange={(e) => setPickedMonth(e.target.value)}
+                  style={{ ...selectStyle, width: 160, padding: "4px 8px", fontSize: 12 }}
+                >
+                  {allMonths.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div style={{ fontSize: 10, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Detail</div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+              <button
+                className="safe"
+                onClick={() => setVariant("full")}
+                title="Role totals + breakdown of each task"
+                style={{ ...btnStyle, fontSize: 10, padding: "4px 10px", background: variant === "full" ? "var(--accent)" : "var(--s2)", color: variant === "full" ? "#fff" : "var(--s4)" }}
+              >
+                Full (with tasks)
+              </button>
+              <button
+                className="safe"
+                onClick={() => setVariant("short")}
+                title="Only role × hours × rate = amount"
+                style={{ ...btnStyle, fontSize: 10, padding: "4px 10px", background: variant === "short" ? "var(--accent)" : "var(--s2)", color: variant === "short" ? "#fff" : "var(--s4)" }}
+              >
+                Short (roles only)
+              </button>
+            </div>
+
+            <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+              <input
+                className="safe"
+                readOnly
+                value={url}
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+                style={{ ...inputStyle, flex: 1, fontSize: 12 }}
+              />
+              <button
+                className="safe"
+                onClick={() => {
+                  navigator.clipboard.writeText(url);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                }}
+                style={{ ...btnStyle, fontSize: 10, padding: "4px 14px" }}
+              >
+                {copied ? "COPIED" : "COPY"}
+              </button>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <a href={url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.06em", textDecoration: "none" }}>
+                Open preview →
+              </a>
+              <button
+                className="viewer-hide"
+                disabled={busy}
+                onClick={async () => {
+                  if (!confirm("Regenerate link? The old link will stop working.")) return;
+                  setBusy(true);
+                  const res = await regenerateReportToken(client.id);
+                  setToken(res.token);
+                  setBusy(false);
+                }}
+                style={{ ...btnStyle, fontSize: 10, padding: "4px 10px", background: "var(--s2)", color: "var(--s4)" }}
+              >
+                {busy ? "…" : "REGENERATE"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

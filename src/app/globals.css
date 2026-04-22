@@ -47,3 +47,13 @@ body {
   background: var(--accent);
   color: #fff;
 }
+
+/* Viewer read-only mode: disable all interactivity inside main,
+   except elements opted in with .safe (and their descendants) and navigation links. */
+body.viewer main * { pointer-events: none !important; }
+body.viewer main a,
+body.viewer main a * { pointer-events: auto !important; }
+body.viewer main .safe,
+body.viewer main .safe * { pointer-events: auto !important; }
+
+body.viewer .viewer-hide { display: none !important; }

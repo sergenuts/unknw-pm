@@ -63,7 +63,7 @@ function InlineEdit({
   if (!editing) {
     return (
       <span
-        onClick={() => { setVal(String(value ?? "")); setEditing(true); }}
+        onClick={() => { if (typeof document !== "undefined" && document.body.classList.contains("viewer")) return; setVal(String(value ?? "")); setEditing(true); }}
         style={{ cursor: "text", borderBottom: "1px dashed var(--s2)", paddingBottom: 1 }}
       >
         {value || "—"}
@@ -220,6 +220,7 @@ export function MemberProjectClient({
         {months.map((m) => (
           <button
             key={m}
+            className="safe"
             onClick={() => setSelectedMonth(m)}
             style={{
               padding: "7px 16px", fontSize: 11,
