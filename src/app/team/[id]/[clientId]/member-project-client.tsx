@@ -11,7 +11,7 @@ function DeleteBtn({
   onConfirm,
   confirmMsg,
 }: {
-  onConfirm: () => Promise<void> | void;
+  onConfirm: () => Promise<unknown> | unknown;
   confirmMsg?: string;
 }) {
   const [pending, startTransition] = useTransition();
@@ -48,7 +48,7 @@ function InlineEdit({
   readOnly = false,
 }: {
   value: string | number;
-  onSave: (v: string) => Promise<void> | void;
+  onSave: (v: string) => Promise<unknown> | unknown;
   width?: number;
   align?: "left" | "right";
   type?: "text" | "number";
