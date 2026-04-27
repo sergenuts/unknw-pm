@@ -712,11 +712,23 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                           <select
                             value={e.role}
                             onChange={(ev) => updateEntryField(e.id, "role", ev.target.value, cl.id)}
-                            style={{ ...selectStyle, width: "auto", padding: "3px 6px", fontSize: 13 }}
+                            style={{
+                              ...selectStyle,
+                              width: "auto",
+                              padding: "3px 6px",
+                              fontSize: 13,
+                              color: rates.some((r) => r.role.trim().toLowerCase() === e.role.trim().toLowerCase()) ? undefined : "var(--accent)",
+                            }}
                           >
-                            {rates.map((r) => (
-                              <option key={r.id} value={r.role}>{r.role}</option>
-                            ))}
+                            {(() => {
+                              const inRates = rates.some((r) => r.role.trim().toLowerCase() === e.role.trim().toLowerCase());
+                              return [
+                                ...(inRates ? [] : [<option key="__stale" value={e.role}>{e.role} (no rate)</option>]),
+                                ...rates.map((r) => (
+                                  <option key={r.id} value={r.role}>{r.role}</option>
+                                )),
+                              ];
+                            })()}
                           </select>
                         </td>
                         <td style={{ ...tdStyle, textAlign: "right" }}>
