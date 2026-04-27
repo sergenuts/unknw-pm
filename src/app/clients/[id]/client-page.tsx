@@ -1231,7 +1231,7 @@ function AddEntryForm({
   const firstMember = members[0];
   const [ownerId, setOwnerId] = useState(firstMember?.id || "");
   const [role, setRole] = useState(
-    (firstMember && rates.find((r) => r.role === firstMember.role)?.role) || firstMember?.role || rates[0]?.role || "",
+    (firstMember && rates.find((r) => r.role === firstMember.role)?.role) || rates[0]?.role || "",
   );
   const [hours, setHours] = useState("");
 
@@ -1239,15 +1239,17 @@ function AddEntryForm({
     setOwnerId(id);
     const m = members.find((x) => x.id === id);
     if (m) {
-      const matched = rates.find((r) => r.role === m.role)?.role || m.role;
+      const matched = rates.find((r) => r.role === m.role)?.role || rates[0]?.role || "";
       setRole(matched);
     }
   }
 
   async function handleSubmit() {
-    if (!ownerId || !role || !hours) return;
+    if (!ownerId) { alert("Pick an owner"); return; }
+    if (!role) { alert("Pick a role"); return; }
+    if (!hours || Number(hours) <= 0) { alert("Hours must be a positive number"); return; }
     if (mode === "date") {
-      if (!task) return;
+      if (!task) { alert("Task name is required"); return; }
       const m = date.match(/^(\d{1,2})\.(\d{1,2})$/);
       if (!m) {
         alert("Date must be in DD.MM format (e.g. 27.04)");
@@ -1258,15 +1260,25 @@ function AddEntryForm({
       const yyyy = new Date().getFullYear();
       const isoDate = `${yyyy}-${mm}-${dd}`;
       const monthKey = `${yyyy}-${mm}`;
-      await createEntry({ client_id: clientId, month: monthKey, task, owner_id: ownerId, role, hours: Number(hours), entry_type: "hours_task", date: isoDate });
+      try {
+        await createEntry({ client_id: clientId, month: monthKey, task, owner_id: ownerId, role, hours: Number(hours), entry_type: "hours_task", date: isoDate });
+      } catch (err) {
+        alert("Failed to save: " + (err instanceof Error ? err.message : String(err)));
+        return;
+      }
     } else {
-      const label = weeks.find((w) => w.week === weekNum)?.label || weekDateLabel(month, weekNum);
-      await createEntry({ client_id: clientId, month, task: task || label, owner_id: ownerId, role, hours: Number(hours), entry_type: "hours_week", week_num: weekNum });
+      try {
+        const label = weeks.find((w) => w.week === weekNum)?.label || weekDateLabel(month, weekNum);
+        await createEntry({ client_id: clientId, month, task: task || label, owner_id: ownerId, role, hours: Number(hours), entry_type: "hours_week", week_num: weekNum });
+      } catch (err) {
+        alert("Failed to save: " + (err instanceof Error ? err.message : String(err)));
+        return;
+      }
     }
     onClose();
   }
 
-  const roleOptions = Array.from(new Set([role, ...rates.map((r) => r.role)].filter(Boolean)));
+  const roleOptions = rates.map((r) => r.role);
 
   return (
     <div style={{ ...panelStyle, marginTop: 16 }}>
