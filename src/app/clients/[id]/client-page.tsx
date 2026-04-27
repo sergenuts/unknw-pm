@@ -1254,7 +1254,7 @@ function AddEntryForm({
     onClose();
   }
 
-  const roleOptions = Array.from(new Set([role, ...rates.map((r) => r.role), ...members.map((m) => m.role)].filter(Boolean)));
+  const roleOptions = Array.from(new Set([role, ...rates.map((r) => r.role)].filter(Boolean)));
 
   return (
     <div style={{ ...panelStyle, marginTop: 16 }}>
