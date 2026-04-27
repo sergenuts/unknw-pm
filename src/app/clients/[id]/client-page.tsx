@@ -357,6 +357,22 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
   };
   const fm = (v: number) => formatMoney(v, cl.currency);
 
+  // Display date as DD.MM, but keep ISO YYYY-MM-DD in DB.
+  const dateToDisplay = (d: string | null | undefined): string => {
+    if (!d) return "";
+    const m = d.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[3]}.${m[2]}`;
+    return d;
+  };
+  const displayToIso = (input: string, prevIso: string | null | undefined): string => {
+    const m = input.trim().match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?$/);
+    if (!m) return input.trim();
+    const dd = m[1].padStart(2, "0");
+    const mm = m[2].padStart(2, "0");
+    const yyyy = m[3] || (prevIso?.match(/^(\d{4})/)?.[1]) || String(new Date().getFullYear());
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   // Month data
   const mEntriesRaw = entries.filter((e) => e.month === selectedMonth);
   // sort newest-first by day, drag reorder can override
@@ -657,9 +673,9 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                             <span style={{ color: "var(--s4)" }}>{weekDateLabel(selectedMonth, e.week_num)}</span>
                           ) : (
                             <EditableText
-                              value={e.date || ""}
+                              value={dateToDisplay(e.date)}
                               placeholder="—"
-                              onSave={(v) => updateEntryField(e.id, "date", v, cl.id)}
+                              onSave={(v) => updateEntryField(e.id, "date", displayToIso(v, e.date), cl.id)}
                             />
                           )}
                         </td>
