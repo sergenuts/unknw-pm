@@ -398,7 +398,24 @@ export async function updateClientRate(
   clientId: string
 ) {
   await assertNotViewer();
-  await supabase.from("client_rates").update({ [field]: value }).eq("id", rateId);
+  if (field === "role") {
+    const { data: prev } = await supabase
+      .from("client_rates")
+      .select("role")
+      .eq("id", rateId)
+      .single();
+    const oldRole = prev?.role as string | undefined;
+    await supabase.from("client_rates").update({ role: value }).eq("id", rateId);
+    if (oldRole && typeof value === "string" && oldRole !== value) {
+      await supabase
+        .from("entries")
+        .update({ role: value })
+        .eq("client_id", clientId)
+        .eq("role", oldRole);
+    }
+  } else {
+    await supabase.from("client_rates").update({ rate: value }).eq("id", rateId);
+  }
   revalidatePath("/clients/" + clientId);
   revalidatePath("/settings");
 }
