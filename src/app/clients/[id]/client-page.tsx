@@ -1259,7 +1259,8 @@ function AddEntryForm({
       const mm = m[2].padStart(2, "0");
       const yyyy = new Date().getFullYear();
       const isoDate = `${yyyy}-${mm}-${dd}`;
-      const monthKey = `${yyyy}-${mm}`;
+      const monthName = new Date(yyyy, Number(mm) - 1, 1).toLocaleString("en", { month: "long" }).toLowerCase();
+      const monthKey = `${monthName} ${yyyy}`;
       try {
         await createEntry({ client_id: clientId, month: monthKey, task, owner_id: ownerId, role, hours: Number(hours), entry_type: "hours_task", date: isoDate });
       } catch (err) {
