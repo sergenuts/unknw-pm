@@ -350,22 +350,34 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
   const [entryOrder, setEntryOrder] = useState<string[]>([]);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
 
-  const getRate = (role: string) => rates.find((r) => r.role === role)?.rate || 0;
+  const getRate = (role: string) => {
+    const norm = (s: string) => s.trim().toLowerCase();
+    const target = norm(role);
+    return rates.find((r) => norm(r.role) === target)?.rate || 0;
+  };
   const fm = (v: number) => formatMoney(v, cl.currency);
 
   // Month data
   const mEntriesRaw = entries.filter((e) => e.month === selectedMonth);
   // sort newest-first by day, drag reorder can override
   const entrySortKey = (e: Entry): number => {
+    const monthBase = Date.parse(e.month + "-01");
     if (e.date) {
       if (/^\d{4}-\d{2}-\d{2}/.test(e.date)) {
         const t = Date.parse(e.date);
         if (!isNaN(t)) return t;
       }
       const n = parseInt(e.date, 10);
-      if (!isNaN(n)) return n;
+      if (!isNaN(n)) {
+        if (!isNaN(monthBase)) return monthBase + (n - 1) * 86400000;
+        return n;
+      }
     }
-    if (e.week_num) return (e.week_num - 1) * 7 + 1;
+    if (e.week_num) {
+      const offset = (e.week_num - 1) * 7 * 86400000;
+      if (!isNaN(monthBase)) return monthBase + offset;
+      return (e.week_num - 1) * 7 + 1;
+    }
     return 0;
   };
   const mEntriesSorted = [...mEntriesRaw].sort((a, b) => entrySortKey(b) - entrySortKey(a));
