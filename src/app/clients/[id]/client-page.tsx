@@ -1219,7 +1219,9 @@ function AddEntryForm({
   clientId: string; month: string; members: TeamMember[]; rates: ClientRate[]; onClose: () => void;
 }) {
   const [mode, setMode] = useState<"date" | "week">("date");
-  const [date, setDate] = useState(new Date().getDate().toString());
+  const today = new Date();
+  const todayDDMM = `${String(today.getDate()).padStart(2, "0")}.${String(today.getMonth() + 1).padStart(2, "0")}`;
+  const [date, setDate] = useState(todayDDMM);
   const weeks = weeksInMonth(month);
   const currentWeek = isoWeek(new Date());
   const [weekNum, setWeekNum] = useState(
@@ -1246,7 +1248,17 @@ function AddEntryForm({
     if (!ownerId || !role || !hours) return;
     if (mode === "date") {
       if (!task) return;
-      await createEntry({ client_id: clientId, month, task, owner_id: ownerId, role, hours: Number(hours), entry_type: "hours_task", date });
+      const m = date.match(/^(\d{1,2})\.(\d{1,2})$/);
+      if (!m) {
+        alert("Date must be in DD.MM format (e.g. 27.04)");
+        return;
+      }
+      const dd = m[1].padStart(2, "0");
+      const mm = m[2].padStart(2, "0");
+      const yyyy = new Date().getFullYear();
+      const isoDate = `${yyyy}-${mm}-${dd}`;
+      const monthKey = `${yyyy}-${mm}`;
+      await createEntry({ client_id: clientId, month: monthKey, task, owner_id: ownerId, role, hours: Number(hours), entry_type: "hours_task", date: isoDate });
     } else {
       const label = weeks.find((w) => w.week === weekNum)?.label || weekDateLabel(month, weekNum);
       await createEntry({ client_id: clientId, month, task: task || label, owner_id: ownerId, role, hours: Number(hours), entry_type: "hours_week", week_num: weekNum });
@@ -1276,7 +1288,7 @@ function AddEntryForm({
         {mode === "date" ? (
           <div>
             <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Day</div>
-            <input style={{ ...inputStyle, width: 60 }} value={date} onChange={(e) => setDate(e.target.value)} />
+            <input style={{ ...inputStyle, width: 80 }} placeholder="DD.MM" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
         ) : (
           <div>
