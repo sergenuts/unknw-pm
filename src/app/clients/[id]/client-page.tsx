@@ -315,6 +315,54 @@ function CostStatusSelect({ value, onChange }: { value: string; onChange: (v: st
   );
 }
 
+// ─── Sort Header (for Tasks table) ───────────────────────────
+
+type TaskSortField = "owner" | "hours" | "amt" | "date";
+type TaskSortState = { field: TaskSortField; dir: "asc" | "desc" } | null;
+
+function SortHeader({
+  field,
+  label,
+  taskSort,
+  setTaskSort,
+  align,
+}: {
+  field: TaskSortField;
+  label: string;
+  taskSort: TaskSortState;
+  setTaskSort: (s: TaskSortState) => void;
+  align?: "right";
+}) {
+  const active = taskSort?.field === field;
+  const arrow = !active ? "" : taskSort.dir === "asc" ? " ↑" : " ↓";
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (!active) setTaskSort({ field, dir: "asc" });
+        else if (taskSort.dir === "asc") setTaskSort({ field, dir: "desc" });
+        else setTaskSort(null);
+      }}
+      style={{
+        background: "transparent",
+        border: "none",
+        padding: 0,
+        margin: 0,
+        font: "inherit",
+        color: active ? "var(--fg)" : "inherit",
+        letterSpacing: "inherit",
+        textTransform: "inherit",
+        cursor: "pointer",
+        textAlign: align || "left",
+        width: "100%",
+      }}
+      title="click to sort"
+    >
+      {label}{arrow}
+    </button>
+  );
+}
+
 // ─── Main Component ──────────────────────────────────────────
 
 export function ClientDetail({ client, entries, rates, months, fixed, costs, assignments, members: membersRaw, outsourceMonths }: Props) {
@@ -349,6 +397,8 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
   const [showAddCost, setShowAddCost] = useState<string | null>(null);
   const [entryOrder, setEntryOrder] = useState<string[]>([]);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [ownerFilter, setOwnerFilter] = useState<string>("");
+  const [taskSort, setTaskSort] = useState<TaskSortState>(null);
 
   const getRate = (role: string) => {
     const norm = (s: string) => s.trim().toLowerCase();
@@ -403,6 +453,37 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
         .filter(Boolean)
         .concat(mEntriesSorted.filter((e) => !entryOrder.includes(e.id))) as Entry[]
     : mEntriesSorted;
+
+  // Filter + sort for the Tasks table view (does not affect totals/report)
+  const memberName = (id: string): string => members.find((m) => m.id === id)?.name || "";
+  const monthOwnerIds = Array.from(new Set(mEntries.map((e) => e.owner_id)));
+  const monthOwners = monthOwnerIds
+    .map((id) => members.find((m) => m.id === id))
+    .filter(Boolean) as typeof members;
+  monthOwners.sort((a, b) => a.name.localeCompare(b.name));
+
+  let mEntriesView: Entry[] = ownerFilter
+    ? mEntries.filter((e) => e.owner_id === ownerFilter)
+    : mEntries;
+  if (taskSort) {
+    mEntriesView = [...mEntriesView].sort((a, b) => {
+      let cmp = 0;
+      if (taskSort.field === "owner") {
+        cmp = memberName(a.owner_id).localeCompare(memberName(b.owner_id));
+      } else if (taskSort.field === "hours") {
+        cmp = (a.hours || 0) - (b.hours || 0);
+      } else if (taskSort.field === "amt") {
+        cmp =
+          (a.hours * (a.coeff || 1) * getRate(a.role)) -
+          (b.hours * (b.coeff || 1) * getRate(b.role));
+      } else if (taskSort.field === "date") {
+        cmp = entrySortKey(a) - entrySortKey(b);
+      }
+      return taskSort.dir === "asc" ? cmp : -cmp;
+    });
+  }
+  const dragEnabled = !ownerFilter && !taskSort;
+
   const mDone = mEntries.filter((e) => e.status === "done");
   const mHours = mDone.reduce((s, e) => s + e.hours * (e.coeff || 1), 0);
   const mBilled = mDone.reduce((s, e) => s + e.hours * (e.coeff || 1) * getRate(e.role), 0);
@@ -596,16 +677,51 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
               </table>
             </div>
 
-            {/* Tasks header + add button */}
-            <div style={{ marginTop: 40, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            {/* Tasks header + filter + add button */}
+            <div style={{ marginTop: 40, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 12, flexWrap: "wrap" }}>
               <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", color: "var(--s3)", textTransform: "uppercase" }}>
                 Tasks
+                {(ownerFilter || taskSort) && (
+                  <span style={{ marginLeft: 10, color: "var(--s4)", textTransform: "none", fontWeight: 400, letterSpacing: 0 }}>
+                    ({mEntriesView.length} of {mEntries.length})
+                  </span>
+                )}
               </div>
-              {!showAddEntry && (
-                <button onClick={() => setShowAddEntry(true)} style={{ ...btnStyle, fontSize: 10, padding: "4px 10px" }}>
-                  + ADD TASK
-                </button>
-              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 10, color: "var(--s3)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Owner</span>
+                <select
+                  value={ownerFilter}
+                  onChange={(e) => setOwnerFilter(e.target.value)}
+                  style={{ ...selectStyle, width: "auto", padding: "4px 8px", fontSize: 12 }}
+                >
+                  <option value="">All</option>
+                  {monthOwners.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+                {(ownerFilter || taskSort) && (
+                  <button
+                    onClick={() => { setOwnerFilter(""); setTaskSort(null); }}
+                    style={{
+                      background: "transparent",
+                      border: "1px solid var(--s2)",
+                      color: "var(--s4)",
+                      fontSize: 10,
+                      padding: "4px 8px",
+                      cursor: "pointer",
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Reset
+                  </button>
+                )}
+                {!showAddEntry && (
+                  <button onClick={() => setShowAddEntry(true)} style={{ ...btnStyle, fontSize: 10, padding: "4px 10px" }}>
+                    + ADD TASK
+                  </button>
+                )}
+              </div>
             </div>
             {showAddEntry && (
               <AddEntryForm
@@ -623,34 +739,49 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                 <thead>
                   <tr>
                     <th style={{ ...thStyle, width: 20 }}></th>
-                    <th style={thStyle}>Date</th>
+                    <th style={thStyle}>
+                      <SortHeader field="date" label="Date" taskSort={taskSort} setTaskSort={setTaskSort} />
+                    </th>
                     <th style={thStyle}>Task</th>
-                    <th style={thStyle}>Owner</th>
+                    <th style={thStyle}>
+                      <SortHeader field="owner" label="Owner" taskSort={taskSort} setTaskSort={setTaskSort} />
+                    </th>
                     <th style={thStyle}>Role</th>
-                    <th style={{ ...thStyle, textAlign: "right" }}>Hrs</th>
+                    <th style={{ ...thStyle, textAlign: "right" }}>
+                      <SortHeader field="hours" label="Hrs" taskSort={taskSort} setTaskSort={setTaskSort} align="right" />
+                    </th>
                     <th style={{ ...thStyle, textAlign: "right" }}>Coeff</th>
-                    <th style={{ ...thStyle, textAlign: "right" }}>Amt</th>
+                    <th style={{ ...thStyle, textAlign: "right" }}>
+                      <SortHeader field="amt" label="Amt" taskSort={taskSort} setTaskSort={setTaskSort} align="right" />
+                    </th>
                     <th style={thStyle}>Status</th>
                     <th style={thStyle}></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {mEntries.map((e, idx) => {
+                  {mEntriesView.length === 0 && (
+                    <tr>
+                      <td colSpan={10} style={{ ...tdStyle, textAlign: "center", color: "var(--s3)", padding: 20 }}>
+                        no tasks match the current filter
+                      </td>
+                    </tr>
+                  )}
+                  {mEntriesView.map((e, idx) => {
                     const amt = e.hours * (e.coeff || 1) * getRate(e.role);
                     const isPending = e.status === "pending" || e.status === "submitted";
                     return (
                       <tr
                         key={e.id}
-                        draggable
-                        onDragStart={() => setDragIdx(idx)}
-                        onDragOver={(ev) => {
+                        draggable={dragEnabled}
+                        onDragStart={dragEnabled ? () => setDragIdx(idx) : undefined}
+                        onDragOver={dragEnabled ? (ev) => {
                           ev.preventDefault();
                           ev.currentTarget.style.borderTop = "2px solid var(--accent)";
-                        }}
-                        onDragLeave={(ev) => {
+                        } : undefined}
+                        onDragLeave={dragEnabled ? (ev) => {
                           ev.currentTarget.style.borderTop = "";
-                        }}
-                        onDrop={(ev) => {
+                        } : undefined}
+                        onDrop={dragEnabled ? (ev) => {
                           ev.currentTarget.style.borderTop = "";
                           if (dragIdx === null || dragIdx === idx) return;
                           const ids = mEntries.map((x) => x.id);
@@ -658,16 +789,16 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                           ids.splice(idx, 0, moved);
                           setEntryOrder(ids);
                           setDragIdx(null);
-                        }}
-                        onDragEnd={() => setDragIdx(null)}
+                        } : undefined}
+                        onDragEnd={dragEnabled ? () => setDragIdx(null) : undefined}
                         style={{
-                          cursor: "grab",
+                          cursor: dragEnabled ? "grab" : "default",
                           opacity: dragIdx === idx ? 0.4 : 1,
                           background: isPending ? "rgba(138, 128, 255, 0.06)" : undefined,
                           boxShadow: isPending ? "inset 2px 0 0 var(--purple)" : undefined,
                         }}
                       >
-                        <td style={{ ...tdStyle, cursor: "grab", color: "var(--s3)", width: 20, fontSize: 11, userSelect: "none" }}>⠿</td>
+                        <td style={{ ...tdStyle, cursor: dragEnabled ? "grab" : "default", color: dragEnabled ? "var(--s3)" : "var(--s2)", width: 20, fontSize: 11, userSelect: "none" }} title={dragEnabled ? "drag to reorder" : "reset filter/sort to enable drag"}>⠿</td>
                         <td style={tdStyle}>
                           {e.entry_type === "hours_week" ? (
                             <span style={{ color: "var(--s4)" }}>{weekDateLabel(selectedMonth, e.week_num)}</span>
