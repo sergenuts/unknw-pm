@@ -620,12 +620,6 @@ export async function setClientVatMode(
   revalidatePath("/clients/" + clientId);
 }
 
-export async function setClientVatRate(clientId: string, vat_rate: number) {
-  await assertNotViewer();
-  await supabase.from("clients").update({ vat_rate }).eq("id", clientId);
-  revalidatePath("/settings");
-  revalidatePath("/clients/" + clientId);
-}
 
 export async function regenerateReportToken(clientId: string): Promise<{ token: string }> {
   const token = (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
