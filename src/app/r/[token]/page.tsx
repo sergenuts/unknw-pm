@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import type { Client, Entry, FixedItem, ClientRate, TeamMember } from "@/lib/types";
+import type { Client, Entry, FixedItem, ClientRate } from "@/lib/types";
 import { ReportView } from "./report-view";
 
 export const dynamic = "force-dynamic";
@@ -12,11 +12,10 @@ async function getData(token: string, month: string | undefined, variant: "full"
     .single();
   if (!client) return null;
 
-  const [entriesRes, ratesRes, fixedRes, membersRes] = await Promise.all([
+  const [entriesRes, ratesRes, fixedRes] = await Promise.all([
     supabase.from("entries").select("*").eq("client_id", (client as Client).id),
     supabase.from("client_rates").select("*").eq("client_id", (client as Client).id),
     supabase.from("fixed_items").select("*").eq("client_id", (client as Client).id),
-    supabase.from("team_members").select("id, name, role"),
   ]);
 
   return {
@@ -26,7 +25,6 @@ async function getData(token: string, month: string | undefined, variant: "full"
     ),
     rates: (ratesRes.data || []) as ClientRate[],
     fixed: (fixedRes.data || []) as FixedItem[],
-    members: (membersRes.data || []) as Pick<TeamMember, "id" | "name" | "role">[],
     month,
     variant,
   };

@@ -1,14 +1,34 @@
 import { formatMoney } from "@/lib/format";
 import { weekDateLabel } from "@/lib/weeks";
-import type { Client, Entry, FixedItem, ClientRate, TeamMember } from "@/lib/types";
+import type { Client, Entry, FixedItem, ClientRate } from "@/lib/types";
 
-type ReportMember = Pick<TeamMember, "id" | "name" | "role">;
+type TaskAgg = {
+  key: string;
+  task: string;
+  hours: number;
+  sortKey: number;
+  /** earliest entry — used for date label when single-day */
+  firstDate: string | null;
+  /** latest entry — used as upper bound when range */
+  lastDate: string | null;
+  /** week_num (for hours_week entries) — only one expected */
+  weekNum: number | null;
+  entryType: Entry["entry_type"];
+  hasRange: boolean;
+};
 
 const MONTH_ORDER = [
   "december 2025", "january 2026", "february 2026", "march 2026", "april 2026",
   "may 2026", "june 2026", "july 2026", "august 2026", "september 2026",
   "october 2026", "november 2026", "december 2026",
 ];
+
+function dateLabel(d: string | null | undefined): string {
+  if (!d) return "—";
+  const m = d.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[3]}.${m[2]}`;
+  return d;
+}
 
 function entrySortKey(e: Entry): number {
   if (e.date) {
@@ -28,7 +48,6 @@ export function ReportView({
   entries,
   rates,
   fixed,
-  members = [],
   month,
   variant = "full",
 }: {
@@ -36,14 +55,11 @@ export function ReportView({
   entries: Entry[];
   rates: ClientRate[];
   fixed: FixedItem[];
-  members?: ReportMember[];
   month?: string;
   variant?: "full" | "short";
 }) {
   const fm = (v: number) => formatMoney(v, client.currency);
   const getRate = (role: string) => rates.find((r) => r.role === role)?.rate || 0;
-  const memberById = new Map(members.map((m) => [m.id, m]));
-  const ownerRole = (id: string | null | undefined) => (id && memberById.get(id)?.role) || "";
 
   const monthSet = new Set<string>();
   entries.forEach((e) => monthSet.add(e.month));
@@ -58,14 +74,42 @@ export function ReportView({
       .sort((a, b) => entrySortKey(b) - entrySortKey(a));
     const mFixed = fixed.filter((f) => f.month === m && f.status === "done");
 
-    const byRole = new Map<string, { hours: number; amount: number; tasks: Entry[] }>();
+    const byRole = new Map<string, { hours: number; amount: number; tasks: Map<string, TaskAgg> }>();
     mEntries.forEach((e) => {
       const h = (e.hours || 0) * (e.coeff || 1);
       const amt = h * getRate(e.role);
-      const g = byRole.get(e.role) || { hours: 0, amount: 0, tasks: [] };
+      const g = byRole.get(e.role) || { hours: 0, amount: 0, tasks: new Map<string, TaskAgg>() };
       g.hours += h;
       g.amount += amt;
-      g.tasks.push(e);
+
+      // Merge entries with the same task name into one row.
+      // hours_week entries are kept distinct per week.
+      const isWeek = e.entry_type === "hours_week";
+      const taskKey = isWeek ? `__w${e.week_num}__${e.task}` : e.task.trim().toLowerCase();
+      const sk = entrySortKey(e);
+      const existing = g.tasks.get(taskKey);
+      if (existing) {
+        existing.hours += h;
+        if (sk > existing.sortKey) existing.sortKey = sk;
+        if (e.date && (!existing.lastDate || e.date > existing.lastDate)) existing.lastDate = e.date;
+        if (e.date && (!existing.firstDate || e.date < existing.firstDate)) existing.firstDate = e.date;
+        if (existing.firstDate && existing.lastDate && existing.firstDate !== existing.lastDate) {
+          existing.hasRange = true;
+        }
+      } else {
+        g.tasks.set(taskKey, {
+          key: taskKey,
+          task: e.task,
+          hours: h,
+          sortKey: sk,
+          firstDate: e.date || null,
+          lastDate: e.date || null,
+          weekNum: isWeek ? e.week_num : null,
+          entryType: e.entry_type,
+          hasRange: false,
+        });
+      }
+
       byRole.set(e.role, g);
     });
 
@@ -164,22 +208,23 @@ export function ReportView({
                     </div>
                     {variant === "full" && (
                       <ul style={styles.taskList}>
-                        {g.tasks.map((t) => {
-                          const when =
-                            t.entry_type === "hours_week"
-                              ? weekDateLabel(md.month, t.week_num)
-                              : t.date || "—";
-                          const h = (t.hours || 0) * (t.coeff || 1);
-                          const role = ownerRole(t.owner_id);
-                          return (
-                            <li key={t.id} style={styles.taskRow}>
-                              <span style={styles.taskDate}>{when}</span>
-                              <span style={styles.taskName}>{t.task}</span>
-                              {role && <span style={styles.taskOwner}>{role}</span>}
-                              <span style={styles.taskHours}>{h.toFixed(1)} h</span>
-                            </li>
-                          );
-                        })}
+                        {Array.from(g.tasks.values())
+                          .sort((a, b) => b.sortKey - a.sortKey)
+                          .map((t) => {
+                            const when =
+                              t.entryType === "hours_week"
+                                ? weekDateLabel(md.month, t.weekNum)
+                                : t.hasRange && t.firstDate && t.lastDate
+                                  ? `${dateLabel(t.firstDate)} – ${dateLabel(t.lastDate)}`
+                                  : dateLabel(t.firstDate);
+                            return (
+                              <li key={t.key} style={styles.taskRow}>
+                                <span style={styles.taskDate}>{when}</span>
+                                <span style={styles.taskName}>{t.task}</span>
+                                <span style={styles.taskHours}>{t.hours.toFixed(1)} h</span>
+                              </li>
+                            );
+                          })}
                       </ul>
                     )}
                   </div>
@@ -429,14 +474,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   taskName: {
     flex: 1,
-  },
-  taskOwner: {
-    color: "#8a8a8a",
-    fontSize: 12,
-    minWidth: 110,
-    textAlign: "right",
-    textTransform: "lowercase",
-    whiteSpace: "nowrap",
   },
   taskHours: {
     color: "#8a8a8a",
