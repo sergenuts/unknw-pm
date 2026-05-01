@@ -1,6 +1,8 @@
 import { formatMoney } from "@/lib/format";
 import { weekDateLabel } from "@/lib/weeks";
-import type { Client, Entry, FixedItem, ClientRate } from "@/lib/types";
+import type { Client, Entry, FixedItem, ClientRate, TeamMember } from "@/lib/types";
+
+type ReportMember = Pick<TeamMember, "id" | "name" | "role">;
 
 const MONTH_ORDER = [
   "december 2025", "january 2026", "february 2026", "march 2026", "april 2026",
@@ -26,6 +28,7 @@ export function ReportView({
   entries,
   rates,
   fixed,
+  members = [],
   month,
   variant = "full",
 }: {
@@ -33,11 +36,14 @@ export function ReportView({
   entries: Entry[];
   rates: ClientRate[];
   fixed: FixedItem[];
+  members?: ReportMember[];
   month?: string;
   variant?: "full" | "short";
 }) {
   const fm = (v: number) => formatMoney(v, client.currency);
   const getRate = (role: string) => rates.find((r) => r.role === role)?.rate || 0;
+  const memberById = new Map(members.map((m) => [m.id, m]));
+  const ownerName = (id: string | null | undefined) => (id && memberById.get(id)?.name) || "";
 
   const monthSet = new Set<string>();
   entries.forEach((e) => monthSet.add(e.month));
@@ -164,10 +170,12 @@ export function ReportView({
                               ? weekDateLabel(md.month, t.week_num)
                               : t.date || "—";
                           const h = (t.hours || 0) * (t.coeff || 1);
+                          const owner = ownerName(t.owner_id);
                           return (
                             <li key={t.id} style={styles.taskRow}>
                               <span style={styles.taskDate}>{when}</span>
                               <span style={styles.taskName}>{t.task}</span>
+                              {owner && <span style={styles.taskOwner}>{owner}</span>}
                               <span style={styles.taskHours}>{h.toFixed(1)} h</span>
                             </li>
                           );
@@ -421,6 +429,13 @@ const styles: Record<string, React.CSSProperties> = {
   },
   taskName: {
     flex: 1,
+  },
+  taskOwner: {
+    color: "#8a8a8a",
+    fontSize: 12,
+    minWidth: 72,
+    textAlign: "right",
+    textTransform: "lowercase",
   },
   taskHours: {
     color: "#8a8a8a",
