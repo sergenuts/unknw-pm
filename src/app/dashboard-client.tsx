@@ -95,7 +95,8 @@ export function DashboardClient({
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     <Badge type="active">active</Badge>
-                    {cl.vat && <Badge type="planned">+VAT</Badge>}
+                    {cl.vat_mode === "excl" && <Badge type="planned">+VAT excl</Badge>}
+                    {cl.vat_mode === "incl" && <Badge type="planned">VAT incl</Badge>}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
                     {cl.deal_lead && (

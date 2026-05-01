@@ -4,8 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/app/_components/badge";
 import { formatMoney } from "@/lib/format";
-import { createTeamMember, deleteTeamMember, createClient, toggleClientVat, updateTeamMemberRate, updateClientField, updateTeamMemberPassword, updateTeamMemberType, updateTeamMemberRole, updateTeamMemberIsLead, updateTeamMemberIsViewer } from "@/app/actions";
-import type { TeamMember, Client, ClientRate } from "@/lib/types";
+import { createTeamMember, deleteTeamMember, createClient, setClientVatMode, setClientVatRate, updateTeamMemberRate, updateClientField, updateTeamMemberPassword, updateTeamMemberType, updateTeamMemberRole, updateTeamMemberIsLead, updateTeamMemberIsViewer } from "@/app/actions";
+import type { TeamMember, Client, ClientRate, VatMode } from "@/lib/types";
 import { PROJECT_ROLES } from "@/lib/types";
 
 const thStyle: React.CSSProperties = {
@@ -215,6 +215,61 @@ function EditableLead({
       ))}
       {value && !leads.includes(value) && <option value={value}>{value}</option>}
     </select>
+  );
+}
+
+function VatModeCell({ client }: { client: Client }) {
+  const mode: VatMode = (client.vat_mode || (client.vat ? "excl" : "none")) as VatMode;
+  const [rate, setRate] = useState(String(client.vat_rate || 20));
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <select
+        value={mode}
+        onChange={(e) => {
+          const next = e.target.value as VatMode;
+          setClientVatMode(client.id, next, next === "none" ? 0 : Number(rate) || 20);
+        }}
+        style={{
+          ...selectStyle,
+          width: "auto",
+          padding: "3px 6px",
+          fontSize: 11,
+          color:
+            mode === "none" ? "var(--red)" :
+            mode === "excl" ? "var(--green)" :
+            "var(--yellow)",
+          fontWeight: 600,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+        }}
+        title={
+          mode === "none" ? "no VAT" :
+          mode === "excl" ? "VAT charged on top of amounts" :
+          "VAT extracted from amounts (gross)"
+        }
+      >
+        <option value="none">no VAT</option>
+        <option value="excl">+VAT excl</option>
+        <option value="incl">VAT incl</option>
+      </select>
+      {mode !== "none" && (
+        <input
+          type="number"
+          value={rate}
+          onChange={(e) => setRate(e.target.value)}
+          onBlur={() => {
+            const n = Number(rate);
+            if (!Number.isNaN(n) && n !== client.vat_rate) {
+              setClientVatRate(client.id, n);
+            }
+          }}
+          style={{ ...inputStyle, width: 50, padding: "3px 6px", fontSize: 12 }}
+        />
+      )}
+      {mode !== "none" && (
+        <span style={{ fontSize: 11, color: "var(--s4)" }}>%</span>
+      )}
+    </div>
   );
 }
 
@@ -428,14 +483,7 @@ export function SettingsClient({
                     </select>
                   </td>
                   <td style={tdStyle}>
-                    <span
-                      onClick={() => toggleClientVat(cl.id, !cl.vat)}
-                      style={{ cursor: "pointer" }}
-                    >
-                      <Badge type={cl.vat ? "active" : "rejected"}>
-                        {cl.vat ? `+VAT ${cl.vat_rate}%` : "no VAT"}
-                      </Badge>
-                    </span>
+                    <VatModeCell client={cl} />
                   </td>
                   <td style={tdStyle}>
                     <EditableLead value={cl.deal_lead || ""} leads={leadNames} onSave={(v) => updateClientField(cl.id, "deal_lead", v)} />
@@ -564,7 +612,7 @@ function AddMemberForm({ onClose }: { onClose: () => void }) {
 function AddClientForm({ leads, onClose }: { leads: string[]; onClose: () => void }) {
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("GBP");
-  const [vat, setVat] = useState(false);
+  const [vatMode, setVatMode] = useState<VatMode>("none");
   const [vatRate, setVatRate] = useState("20");
   const [dealLead, setDealLead] = useState("");
 
@@ -573,8 +621,8 @@ function AddClientForm({ leads, onClose }: { leads: string[]; onClose: () => voi
     await createClient({
       name,
       currency,
-      vat,
-      vat_rate: vat ? Number(vatRate) : 0,
+      vat_mode: vatMode,
+      vat_rate: vatMode === "none" ? 0 : Number(vatRate),
       deal_lead: dealLead,
     });
     onClose();
@@ -595,18 +643,28 @@ function AddClientForm({ leads, onClose }: { leads: string[]; onClose: () => voi
             <option value="EUR">EUR</option>
           </select>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, paddingBottom: 2 }}>
-          <input type="checkbox" checked={vat} onChange={(e) => setVat(e.target.checked)} />
-          <span style={{ fontSize: 12, color: "var(--s4)" }}>VAT</span>
-          {vat && (
-            <input
-              style={{ ...inputStyle, width: 50 }}
-              type="number"
-              value={vatRate}
-              onChange={(e) => setVatRate(e.target.value)}
-              placeholder="%"
-            />
-          )}
+        <div>
+          <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>VAT</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <select
+              style={{ ...selectStyle, width: 110 }}
+              value={vatMode}
+              onChange={(e) => setVatMode(e.target.value as VatMode)}
+            >
+              <option value="none">no VAT</option>
+              <option value="excl">+VAT excl</option>
+              <option value="incl">VAT incl</option>
+            </select>
+            {vatMode !== "none" && (
+              <input
+                style={{ ...inputStyle, width: 60 }}
+                type="number"
+                value={vatRate}
+                onChange={(e) => setVatRate(e.target.value)}
+                placeholder="%"
+              />
+            )}
+          </div>
         </div>
         <div>
           <div style={{ fontSize: 10, color: "var(--s3)", marginBottom: 4, textTransform: "uppercase" }}>Deal Lead</div>

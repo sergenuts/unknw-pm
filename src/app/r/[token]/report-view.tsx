@@ -73,8 +73,16 @@ export function ReportView({
 
   const grandHours = monthsData.reduce((s, m) => s + m.hoursTotal, 0);
   const grandSubtotal = monthsData.reduce((s, m) => s + m.subtotal, 0);
-  const vatAmount = client.vat ? grandSubtotal * (client.vat_rate / 100) : 0;
-  const grandTotal = grandSubtotal + vatAmount;
+  // VAT: 'excl' = added on top, 'incl' = extracted from subtotal (which is gross), 'none' = no VAT.
+  const vatMode = client.vat_mode || (client.vat ? "excl" : "none");
+  const rate = client.vat_rate / 100;
+  const vatAmount =
+    vatMode === "excl" ? grandSubtotal * rate :
+    vatMode === "incl" ? grandSubtotal - grandSubtotal / (1 + rate) :
+    0;
+  const netAmount = vatMode === "incl" ? grandSubtotal - vatAmount : grandSubtotal;
+  const grandTotal = vatMode === "excl" ? grandSubtotal + vatAmount : grandSubtotal;
+  const showVatLine = vatMode !== "none";
 
   const now = new Date().toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" });
 
@@ -111,13 +119,15 @@ export function ReportView({
             <div style={styles.summaryLabel}>Hours</div>
           </div>
           <div style={styles.summaryCell}>
-            <div style={styles.summaryValue}>{fm(grandSubtotal)}</div>
-            <div style={styles.summaryLabel}>Subtotal</div>
+            <div style={styles.summaryValue}>{fm(vatMode === "incl" ? netAmount : grandSubtotal)}</div>
+            <div style={styles.summaryLabel}>{vatMode === "incl" ? "Net" : "Subtotal"}</div>
           </div>
-          {client.vat && (
+          {showVatLine && (
             <div style={styles.summaryCell}>
               <div style={styles.summaryValue}>{fm(vatAmount)}</div>
-              <div style={styles.summaryLabel}>VAT {client.vat_rate}%</div>
+              <div style={styles.summaryLabel}>
+                VAT {client.vat_rate}%{vatMode === "incl" ? " (incl.)" : ""}
+              </div>
             </div>
           )}
           <div style={{ ...styles.summaryCell, ...styles.summaryCellGrand }}>
@@ -196,12 +206,12 @@ export function ReportView({
         {/* Totals */}
         <div style={styles.totalsBlock}>
           <div style={styles.totalsRow}>
-            <span>Subtotal</span>
-            <span>{fm(grandSubtotal)}</span>
+            <span>{vatMode === "incl" ? "Net" : "Subtotal"}</span>
+            <span>{fm(vatMode === "incl" ? netAmount : grandSubtotal)}</span>
           </div>
-          {client.vat && (
+          {showVatLine && (
             <div style={styles.totalsRow}>
-              <span>VAT {client.vat_rate}%</span>
+              <span>VAT {client.vat_rate}%{vatMode === "incl" ? " (incl.)" : ""}</span>
               <span>{fm(vatAmount)}</span>
             </div>
           )}

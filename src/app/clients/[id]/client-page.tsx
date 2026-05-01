@@ -568,7 +568,8 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
         <div>
           <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
             <Badge type="active">active</Badge>
-            {cl.vat && <Badge type="planned">+VAT {cl.vat_rate}%</Badge>}
+            {cl.vat_mode === "excl" && <Badge type="planned">+VAT {cl.vat_rate}% excl</Badge>}
+            {cl.vat_mode === "incl" && <Badge type="planned">VAT {cl.vat_rate}% incl</Badge>}
           </div>
           <h1 style={{ fontSize: 28, fontWeight: 800, textTransform: "uppercase", lineHeight: 0.92, margin: 0, color: "var(--fg)" }}>
             {cl.name}

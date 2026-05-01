@@ -583,19 +583,46 @@ export async function upsertOutsourceMonth(
 export async function createClient(data: {
   name: string;
   currency: string;
-  vat: boolean;
+  vat_mode: "none" | "excl" | "incl";
   vat_rate: number;
   deal_lead: string;
 }) {
   await assertNotViewer();
-  await supabase.from("clients").insert(data);
+  const { vat_mode, vat_rate, ...rest } = data;
+  await supabase.from("clients").insert({
+    ...rest,
+    vat_mode,
+    // keep legacy boolean in sync
+    vat: vat_mode !== "none",
+    vat_rate: vat_mode === "none" ? 0 : vat_rate,
+  });
   revalidatePath("/settings");
   revalidatePath("/");
 }
 
-export async function toggleClientVat(clientId: string, vat: boolean) {
+export async function setClientVatMode(
+  clientId: string,
+  vat_mode: "none" | "excl" | "incl",
+  vat_rate?: number,
+) {
   await assertNotViewer();
-  await supabase.from("clients").update({ vat }).eq("id", clientId);
+  const update: Record<string, unknown> = {
+    vat_mode,
+    vat: vat_mode !== "none",
+  };
+  if (vat_mode === "none") {
+    update.vat_rate = 0;
+  } else if (typeof vat_rate === "number") {
+    update.vat_rate = vat_rate;
+  }
+  await supabase.from("clients").update(update).eq("id", clientId);
+  revalidatePath("/settings");
+  revalidatePath("/clients/" + clientId);
+}
+
+export async function setClientVatRate(clientId: string, vat_rate: number) {
+  await assertNotViewer();
+  await supabase.from("clients").update({ vat_rate }).eq("id", clientId);
   revalidatePath("/settings");
   revalidatePath("/clients/" + clientId);
 }

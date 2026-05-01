@@ -24,6 +24,7 @@ create table clients (
   currency text not null default 'GBP' check (currency in ('GBP', 'USD', 'EUR')),
   vat boolean default false,
   vat_rate integer default 0,
+  vat_mode text default 'none' check (vat_mode in ('none', 'excl', 'incl')),
   deal_lead text,
   status text default 'active' check (status in ('active', 'paused', 'closed')),
   created_at timestamptz default now()

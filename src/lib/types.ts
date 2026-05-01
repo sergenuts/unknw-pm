@@ -20,11 +20,15 @@ export const PROJECT_ROLES = [
   "copy",
 ] as const;
 
+export type VatMode = "none" | "excl" | "incl";
+
 export interface Client {
   id: string;
   name: string;
   currency: "GBP" | "USD" | "EUR";
+  /** @deprecated kept for backwards compat — use vat_mode !== "none" */
   vat: boolean;
+  vat_mode: VatMode;
   vat_rate: number;
   deal_lead: string | null;
   status: string;
