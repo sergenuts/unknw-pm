@@ -43,7 +43,7 @@ export function ReportView({
   const fm = (v: number) => formatMoney(v, client.currency);
   const getRate = (role: string) => rates.find((r) => r.role === role)?.rate || 0;
   const memberById = new Map(members.map((m) => [m.id, m]));
-  const ownerName = (id: string | null | undefined) => (id && memberById.get(id)?.name) || "";
+  const ownerRole = (id: string | null | undefined) => (id && memberById.get(id)?.role) || "";
 
   const monthSet = new Set<string>();
   entries.forEach((e) => monthSet.add(e.month));
@@ -170,12 +170,12 @@ export function ReportView({
                               ? weekDateLabel(md.month, t.week_num)
                               : t.date || "—";
                           const h = (t.hours || 0) * (t.coeff || 1);
-                          const owner = ownerName(t.owner_id);
+                          const role = ownerRole(t.owner_id);
                           return (
                             <li key={t.id} style={styles.taskRow}>
                               <span style={styles.taskDate}>{when}</span>
                               <span style={styles.taskName}>{t.task}</span>
-                              {owner && <span style={styles.taskOwner}>{owner}</span>}
+                              {role && <span style={styles.taskOwner}>{role}</span>}
                               <span style={styles.taskHours}>{h.toFixed(1)} h</span>
                             </li>
                           );
@@ -433,9 +433,10 @@ const styles: Record<string, React.CSSProperties> = {
   taskOwner: {
     color: "#8a8a8a",
     fontSize: 12,
-    minWidth: 72,
+    minWidth: 110,
     textAlign: "right",
     textTransform: "lowercase",
+    whiteSpace: "nowrap",
   },
   taskHours: {
     color: "#8a8a8a",
