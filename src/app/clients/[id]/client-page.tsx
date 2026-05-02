@@ -1088,12 +1088,14 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
               {selectedMonth}
             </div>
             {(() => {
-              // outsource members from entries this month
+              // outsource members from entries this month — only approved (done) hours,
+              // raw hours (coeff is for client billing only, not outsourcer payouts)
               const outsourceOwners = new Map<string, number>();
               mEntries.forEach((e) => {
+                if (e.status !== "done") return;
                 const m = members.find((mb) => mb.id === e.owner_id);
                 if (m && m.type === "outsource") {
-                  outsourceOwners.set(e.owner_id, (outsourceOwners.get(e.owner_id) || 0) + e.hours * (e.coeff || 1));
+                  outsourceOwners.set(e.owner_id, (outsourceOwners.get(e.owner_id) || 0) + (e.hours || 0));
                 }
               });
               if (outsourceOwners.size === 0) {
@@ -1120,8 +1122,10 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                       const toPay = hours * rate;
                       const paid = om?.paid || 0;
                       const status = om?.status || "pending";
+                      const noRate = !rate;
+                      const rowBg = noRate ? "rgba(255, 184, 0, 0.06)" : undefined;
                       return (
-                        <tr key={ownerId}>
+                        <tr key={ownerId} style={{ background: rowBg }} title={noRate ? "rate not set" : undefined}>
                           <td style={tdStyle}>
                             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                               <Badge type="outsource">outsource</Badge>
@@ -1129,11 +1133,11 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                             </div>
                           </td>
                           <td style={{ ...tdStyle, textAlign: "right" }}>{hours}</td>
-                          <td style={{ ...tdStyle, textAlign: "right" }}>
+                          <td style={{ ...tdStyle, textAlign: "right", color: noRate ? "var(--yellow)" : undefined, fontWeight: noRate ? 600 : undefined }}>
                             <EditableValue
                               value={rate}
                               size={13}
-                              format={(v) => fm(v)}
+                              format={(v) => v ? fm(v) : "no rate"}
                               onSave={(v) => upsertOutsourceMonth(cl.id, ownerId, selectedMonth, "rate_override", v)}
                             />
                           </td>
@@ -1182,6 +1186,7 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                     <th style={thStyle}>Month</th>
                     <th style={thStyle}>Outsourcer</th>
                     <th style={{ ...thStyle, textAlign: "right" }}>Hours</th>
+                    <th style={{ ...thStyle, textAlign: "right" }}>Rate</th>
                     <th style={{ ...thStyle, textAlign: "right" }}>To Pay</th>
                     <th style={{ ...thStyle, textAlign: "right" }}>Paid</th>
                     <th style={thStyle}>Status</th>
@@ -1189,12 +1194,13 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                 </thead>
                 <tbody>
                   {allMonths.map((month) => {
-                    const monthEntries = entries.filter((e) => e.month === month);
+                    // only approved hours, no coeff (coeff is for client billing)
+                    const monthEntries = entries.filter((e) => e.month === month && e.status === "done");
                     const outsourceMap = new Map<string, number>();
                     monthEntries.forEach((e) => {
                       const m = members.find((mb) => mb.id === e.owner_id);
                       if (m && m.type === "outsource") {
-                        outsourceMap.set(e.owner_id, (outsourceMap.get(e.owner_id) || 0) + e.hours * (e.coeff || 1));
+                        outsourceMap.set(e.owner_id, (outsourceMap.get(e.owner_id) || 0) + (e.hours || 0));
                       }
                     });
                     const rows = Array.from(outsourceMap.entries());
@@ -1207,13 +1213,23 @@ export function ClientDetail({ client, entries, rates, months, fixed, costs, ass
                       const toPay = hours * rate;
                       const paid = om?.paid || 0;
                       const status = om?.status || "pending";
+                      const noRate = !rate;
+                      const rowBg = noRate ? "rgba(255, 184, 0, 0.06)" : undefined;
                       return (
-                        <tr key={month + ownerId}>
+                        <tr key={month + ownerId} style={{ background: rowBg }} title={noRate ? "rate not set" : undefined}>
                           {idx === 0 && (
                             <td style={{ ...tdStyle, verticalAlign: "top", borderBottom: "1px solid var(--s1)" }} rowSpan={rows.length}>{month}</td>
                           )}
                           <td style={tdStyle}>{m.name}</td>
                           <td style={{ ...tdStyle, textAlign: "right" }}>{hours}</td>
+                          <td style={{ ...tdStyle, textAlign: "right", color: noRate ? "var(--yellow)" : undefined, fontWeight: noRate ? 600 : undefined }}>
+                            <EditableValue
+                              value={rate}
+                              size={13}
+                              format={(v) => v ? fm(v) : "no rate"}
+                              onSave={(v) => upsertOutsourceMonth(cl.id, ownerId, month, "rate_override", v)}
+                            />
+                          </td>
                           <td style={{ ...tdStyle, textAlign: "right" }}>{fm(toPay)}</td>
                           <td style={{ ...tdStyle, textAlign: "right" }}>
                             <EditableValue
