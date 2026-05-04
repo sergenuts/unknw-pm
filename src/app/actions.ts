@@ -121,7 +121,23 @@ export async function updateEntryField(
   clientId: string
 ) {
   await assertNotViewer();
-  await supabase.from("entries").update({ [field]: value }).eq("id", entryId);
+  const update: Record<string, string | number> = { [field]: value };
+
+  // Keep `month` in sync with `date` so the entry doesn't drift between
+  // month tabs (e.g. editing 27.04 → 01.05 used to leave month="april 2026").
+  if (field === "date" && typeof value === "string") {
+    const m = value.match(/^(\d{4})-(\d{2})-\d{2}/);
+    if (m) {
+      const yyyy = Number(m[1]);
+      const mm = Number(m[2]);
+      const monthName = new Date(yyyy, mm - 1, 1)
+        .toLocaleString("en", { month: "long" })
+        .toLowerCase();
+      update.month = `${monthName} ${yyyy}`;
+    }
+  }
+
+  await supabase.from("entries").update(update).eq("id", entryId);
   revalidatePath("/clients/" + clientId);
   if (field === "status") revalidatePath("/approvals");
 }
