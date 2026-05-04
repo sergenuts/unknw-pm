@@ -6,6 +6,59 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
+// ─── Date helpers ────────────────────────────────────────────
+
+const MONTH_NAMES = [
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december",
+];
+
+/**
+ * Coerce a user-entered date into ISO YYYY-MM-DD when possible.
+ * Accepts:
+ *   - "YYYY-MM-DD" → returned as-is
+ *   - "DD.MM" or "DD.MM.YYYY" → built from parts (year defaults to monthLabel's year, then current year)
+ *   - bare day "1", "27" → combined with monthLabel ("may 2026" → "2026-05-27")
+ *   - anything else (week ranges like "1-5", "w3") → returned untouched
+ */
+function coerceDateToIso(input: string, monthLabel?: string): string {
+  const v = input.trim();
+  if (!v) return v;
+  if (/^\d{4}-\d{2}-\d{2}/.test(v)) return v;
+
+  const monthCtx = monthLabel?.match(/^([a-z]+)\s+(\d{4})$/i);
+  const ctxMonthIdx = monthCtx ? MONTH_NAMES.indexOf(monthCtx[1].toLowerCase()) : -1;
+  const ctxYear = monthCtx?.[2];
+
+  // DD.MM[.YYYY]
+  const dmy = v.match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?$/);
+  if (dmy) {
+    const dd = dmy[1].padStart(2, "0");
+    const mm = dmy[2].padStart(2, "0");
+    const yyyy = dmy[3] || ctxYear || String(new Date().getFullYear());
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  // bare day "1".."31"
+  const dayOnly = v.match(/^(\d{1,2})$/);
+  if (dayOnly && ctxMonthIdx >= 0 && ctxYear) {
+    const dd = dayOnly[1].padStart(2, "0");
+    const mm = String(ctxMonthIdx + 1).padStart(2, "0");
+    return `${ctxYear}-${mm}-${dd}`;
+  }
+
+  return v;
+}
+
+function monthFromIso(iso: string): string | null {
+  const m = iso.match(/^(\d{4})-(\d{2})-\d{2}/);
+  if (!m) return null;
+  const yyyy = m[1];
+  const mIdx = Number(m[2]) - 1;
+  if (mIdx < 0 || mIdx > 11) return null;
+  return `${MONTH_NAMES[mIdx]} ${yyyy}`;
+}
+
 // ─── Auth ────────────────────────────────────────────────────
 
 export async function loginAdmin(login: string, password: string): Promise<{ error?: string }> {
@@ -126,15 +179,15 @@ export async function updateEntryField(
   // Keep `month` in sync with `date` so the entry doesn't drift between
   // month tabs (e.g. editing 27.04 → 01.05 used to leave month="april 2026").
   if (field === "date" && typeof value === "string") {
-    const m = value.match(/^(\d{4})-(\d{2})-\d{2}/);
-    if (m) {
-      const yyyy = Number(m[1]);
-      const mm = Number(m[2]);
-      const monthName = new Date(yyyy, mm - 1, 1)
-        .toLocaleString("en", { month: "long" })
-        .toLowerCase();
-      update.month = `${monthName} ${yyyy}`;
-    }
+    const { data: existing } = await supabase
+      .from("entries")
+      .select("month")
+      .eq("id", entryId)
+      .single();
+    const iso = coerceDateToIso(value, (existing as { month?: string } | null)?.month);
+    update.date = iso;
+    const monthLabel = monthFromIso(iso);
+    if (monthLabel) update.month = monthLabel;
   }
 
   await supabase.from("entries").update(update).eq("id", entryId);
@@ -160,15 +213,23 @@ export async function createEntry(data: {
   week_num?: number;
 }) {
   await assertNotViewer();
+  let date = data.date ?? null;
+  let month = data.month;
+  const entryType = data.entry_type ?? "hours_task";
+  if (entryType === "hours_task" && typeof date === "string" && date) {
+    date = coerceDateToIso(date, month);
+    const derivedMonth = monthFromIso(date);
+    if (derivedMonth) month = derivedMonth;
+  }
   await supabase.from("entries").insert({
     client_id: data.client_id,
-    month: data.month,
+    month,
     task: data.task,
     owner_id: data.owner_id,
     role: data.role,
     hours: data.hours,
-    entry_type: data.entry_type ?? "hours_task",
-    date: data.date ?? null,
+    entry_type: entryType,
+    date,
     week_num: data.week_num ?? null,
     coeff: 1,
     status: "in progress",
@@ -191,14 +252,23 @@ export async function createMemberEntry(data: {
   week_num?: number;
 }) {
   await assertNotViewer();
+  // Outsourcers may submit just a day number ("4") or DD.MM. Coerce to ISO
+  // and re-derive month so the entry lands in the correct month tab.
+  let date = data.date ?? null;
+  let month = data.month;
+  if (data.entry_type === "hours_task" && typeof date === "string" && date) {
+    date = coerceDateToIso(date, month);
+    const derivedMonth = monthFromIso(date);
+    if (derivedMonth) month = derivedMonth;
+  }
   await supabase.from("entries").insert({
     client_id: data.client_id,
-    month: data.month,
+    month,
     owner_id: data.owner_id,
     role: data.role,
     entry_type: data.entry_type,
     task: data.task,
-    date: data.date ?? null,
+    date,
     hours: data.hours ?? 0,
     amount: data.amount ?? 0,
     week_num: data.week_num ?? null,
@@ -325,14 +395,23 @@ export async function updateMemberEntryField(
   await assertNotViewer();
   const { data: existing } = await supabase
     .from("entries")
-    .select("status, owner_id")
+    .select("status, owner_id, month")
     .eq("id", entryId)
     .single();
   if (!existing || existing.owner_id !== memberId) return { error: "Not your entry" };
   if (!["pending", "submitted", "in progress"].includes(existing.status)) {
     return { error: "Locked — already reviewed" };
   }
-  await supabase.from("entries").update({ [field]: value }).eq("id", entryId);
+
+  const update: Record<string, string | number> = { [field]: value };
+  if (field === "date" && typeof value === "string") {
+    const iso = coerceDateToIso(value, (existing as { month?: string }).month);
+    update.date = iso;
+    const monthLabel = monthFromIso(iso);
+    if (monthLabel) update.month = monthLabel;
+  }
+
+  await supabase.from("entries").update(update).eq("id", entryId);
   revalidatePath("/clients/" + clientId);
   revalidatePath("/team/" + memberId);
   revalidatePath("/team/" + memberId + "/" + clientId);
