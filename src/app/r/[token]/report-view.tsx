@@ -134,6 +134,17 @@ export function ReportView({
   const grandTotal = vatMode === "excl" ? grandSubtotal + vatAmount : grandSubtotal;
   const showVatLine = vatMode !== "none";
 
+  const vatHeader =
+    vatMode === "excl" ? `${client.vat_rate}% — added on top` :
+    vatMode === "incl" ? `${client.vat_rate}% — included in prices` :
+    "Not applicable";
+  const vatNote =
+    vatMode === "excl"
+      ? `Prices in this statement are quoted excluding VAT. VAT at ${client.vat_rate}% is added on top of the subtotal to arrive at the total due.`
+      : vatMode === "incl"
+        ? `Prices in this statement already include VAT at ${client.vat_rate}%. The VAT amount is itemised separately for reference; the total due equals the sum of gross prices.`
+        : null;
+
   const now = new Date().toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" });
 
   return (
@@ -159,6 +170,16 @@ export function ReportView({
             <div style={styles.metaValue}>{now}</div>
             <div style={{ ...styles.metaLabel, marginTop: 10 }}>Currency</div>
             <div style={styles.metaValue}>{client.currency}</div>
+            <div style={{ ...styles.metaLabel, marginTop: 10 }}>VAT</div>
+            <div
+              style={{
+                ...styles.metaValue,
+                color: vatMode === "none" ? "#8a8a8a" : "#1a1a1a",
+                fontWeight: vatMode === "none" ? 400 : 600,
+              }}
+            >
+              {vatHeader}
+            </div>
           </div>
         </div>
 
@@ -176,7 +197,7 @@ export function ReportView({
             <div style={styles.summaryCell}>
               <div style={styles.summaryValue}>{fm(vatAmount)}</div>
               <div style={styles.summaryLabel}>
-                VAT {client.vat_rate}%{vatMode === "incl" ? " (incl.)" : ""}
+                VAT {client.vat_rate}% {vatMode === "incl" ? "included" : "added"}
               </div>
             </div>
           )}
@@ -264,7 +285,7 @@ export function ReportView({
           </div>
           {showVatLine && (
             <div style={styles.totalsRow}>
-              <span>VAT {client.vat_rate}%{vatMode === "incl" ? " (incl.)" : ""}</span>
+              <span>VAT {client.vat_rate}% {vatMode === "incl" ? "included in prices" : "added on top"}</span>
               <span>{fm(vatAmount)}</span>
             </div>
           )}
@@ -273,6 +294,10 @@ export function ReportView({
             <span>{fm(grandTotal)}</span>
           </div>
         </div>
+
+        {vatNote && (
+          <div style={styles.vatNote}>{vatNote}</div>
+        )}
 
         <div style={styles.footer}>
           <div style={{ fontWeight: 600, color: "#4a4a4a", marginBottom: 2 }}>UNKNW</div>
@@ -529,6 +554,15 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 8,
     paddingTop: 14,
     borderTop: "1px solid #eee",
+  },
+  vatNote: {
+    marginTop: 24,
+    padding: "12px 16px",
+    background: "#f5f5f3",
+    borderLeft: "2px solid #c8c8c4",
+    fontSize: 12,
+    lineHeight: 1.5,
+    color: "#4a4a4a",
   },
   footer: {
     marginTop: 56,
